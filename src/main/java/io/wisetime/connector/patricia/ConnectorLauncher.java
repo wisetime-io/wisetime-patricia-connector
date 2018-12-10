@@ -29,6 +29,7 @@ import io.wisetime.connector.config.RuntimeConfigKey;
 public class ConnectorLauncher {
 
   public static void main(final String... args) throws Exception {
+    //todo (vs) set template
     ServerRunner.createServerBuilder()
         .withWiseTimeConnector(Guice.createInjector(new PatriciaDbModule()).getInstance(PatriciaConnector.class))
         .build()
@@ -48,7 +49,7 @@ public class ConnectorLauncher {
     PATRICIA_JDBC_PASSWORD("PATRICIA_JDBC_PASSWORD"),
     PATRICIA_ROLE_TYPE_ID("PATRICIA_ROLE_TYPE_ID"),
     TAG_MODIFIER_MAPPINGS("TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS"),
-    DEFAULT_WORK_CODE_NAME("DEFAULT_WORK_CODE_NAME"),
+    DEFAULT_MODIFIER("DEFAULT_MODIFIER"),
 
     //optional
     TAG_UPSERT_PATH("TAG_UPSERT_PATH"),
