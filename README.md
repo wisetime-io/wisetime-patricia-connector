@@ -33,7 +33,6 @@ The following configuration options are optional.
 | TIMEZONE                         | The timezone to use when posting time to Patricia, e.g. `Australia/Perth`. Defaults to `UTC`.                                           |
 | PATRICIA_TIME_COMMENT_INVOICE    | Optional label to use in time charge/invoice record instead of narrative provided with posted time.                                     |
 | INCLUDE_TIME_DURATION_TO_COMMENT | Set to `true` if app duration should be included in the time comment. Default value is `false`.                                         |
-| CLOUD_LOG_ENABLED                | Set to `true` to enable [Logging in AWS Cloudwatch](#logging-to-aws-cloudwatch). Default value is `false`                                |
 
 
 ## Running the WiseTime Postgres Connector
