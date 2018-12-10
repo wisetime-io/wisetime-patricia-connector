@@ -13,7 +13,7 @@ class RandomDataGenerator {
 
   private static final Faker FAKER = new Faker();
 
-  PatriciaDao.PatriciaCase randomIssue() {
+  PatriciaDao.PatriciaCase randomCase() {
     return ImmutablePatriciaCase.builder()
         .id(FAKER.number().numberBetween(1, 10000))
         .caseCatchWord(FAKER.lorem().word())

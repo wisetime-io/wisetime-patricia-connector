@@ -83,7 +83,7 @@ class PatriciaConnectorPerformTagUpdateTest {
   @Test
   void performTagUpdate_upsert_error() throws IOException {
     when(patriciaDao.findCasesOrderById(anyLong(), anyInt()))
-        .thenReturn(ImmutableList.of(randomDataGenerator.randomIssue(), randomDataGenerator.randomIssue()));
+        .thenReturn(ImmutableList.of(randomDataGenerator.randomCase(), randomDataGenerator.randomCase()));
 
     IOException casedBy = new IOException("Expected exception");
     doThrow(casedBy)
@@ -98,8 +98,8 @@ class PatriciaConnectorPerformTagUpdateTest {
 
   @Test
   void performTagUpdate_new_cases_found() throws IOException {
-    final PatriciaDao.PatriciaCase case1 = randomDataGenerator.randomIssue();
-    final PatriciaDao.PatriciaCase case2 = randomDataGenerator.randomIssue();
+    final PatriciaDao.PatriciaCase case1 = randomDataGenerator.randomCase();
+    final PatriciaDao.PatriciaCase case2 = randomDataGenerator.randomCase();
 
     when(connectorStore.getLong(anyString())).thenReturn(Optional.empty());
 
@@ -116,7 +116,7 @@ class PatriciaConnectorPerformTagUpdateTest {
     assertThat(upsertRequests.getValue())
         .containsExactlyInAnyOrder(case1.toUpsertTagRequest("/Patricia/"),
             case2.toUpsertTagRequest("/Patricia/"))
-        .as("We should create tags for both new issues found, with the configured tag upsert path");
+        .as("We should create tags for both new cases found, with the configured tag upsert path");
 
     verify(connectorStore, times(1))
         .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.getId());

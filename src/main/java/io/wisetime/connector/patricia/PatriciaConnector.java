@@ -62,10 +62,10 @@ public class PatriciaConnector implements WiseTimeConnector {
   @Override
   public void performTagUpdate() {
     while (true) {
-      final Optional<Long> lastPreviouslySyncedIssueId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY);
+      final Optional<Long> storedLastSyncedCaseId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY);
 
       final List<PatriciaDao.PatriciaCase> newCases = patriciaDao.findCasesOrderById(
-          lastPreviouslySyncedIssueId.orElse(0L),
+          storedLastSyncedCaseId.orElse(0L),
           tagUpsertBatchSize()
       );
 
@@ -80,11 +80,11 @@ public class PatriciaConnector implements WiseTimeConnector {
 
           apiClient.tagUpsertBatch(upsertRequests);
 
-          final long lastSyncedIssueId = newCases.get(newCases.size() - 1).getId();
-          connectorStore.putLong(PATRICIA_LAST_SYNC_KEY, lastSyncedIssueId);
+          final long lastSyncedCaseId = newCases.get(newCases.size() - 1).getId();
+          connectorStore.putLong(PATRICIA_LAST_SYNC_KEY, lastSyncedCaseId);
 
         } catch (IOException e) {
-          // The batch will be retried since we didn't update the last synced issue ID
+          // The batch will be retried since we didn't update the last synced case ID
           // Let scheduler know that this batch has failed
           throw new RuntimeException(e);
         }
