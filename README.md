@@ -20,7 +20,7 @@ Configuration is done through environment variables. The following configuration
 | PATRICIA_JDBC_PASSWORD                    | The password of the Patricia DB                                          |
 | PATRICIA_ROLE_TYPE_ID                     | The role type id from patricia database                                  |
 | TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS  | Work code mappings with modifier name as key and work code id as value   |
-| DEFAULT_WORK_CODE_NAME                    | The default work code to be used when modifier is not set to posted time.|
+| DEFAULT_MODIFIER                          | The default modifier to use when it is not explicitly in posted time.    |
 
 
 The following configuration options are optional.
