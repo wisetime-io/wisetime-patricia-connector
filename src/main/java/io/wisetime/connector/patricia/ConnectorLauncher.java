@@ -29,8 +29,12 @@ import io.wisetime.connector.config.RuntimeConfigKey;
 public class ConnectorLauncher {
 
   public static void main(final String... args) throws Exception {
-    //todo (vs) set template
+    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_TIME_DURATION_TO_COMMENT)
+        .map(Boolean::parseBoolean).orElse(false);
     ServerRunner.createServerBuilder()
+        .withTemplatePath(includeTimeDuration
+            ? "classpath:patricia-with-duration_time-registration.ftl"
+            : "classpath:patricia-no-duration_time-registration.ftl")
         .withWiseTimeConnector(Guice.createInjector(new PatriciaDbModule()).getInstance(PatriciaConnector.class))
         .build()
         .startServer();
