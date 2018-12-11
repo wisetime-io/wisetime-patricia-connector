@@ -23,14 +23,12 @@ import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
-import io.wisetime.connector.patricia.posting_time.BillingService;
-import io.wisetime.connector.patricia.posting_time.ImmutablePostTimeCommonParams;
-import io.wisetime.connector.patricia.posting_time.PostTimeCommonParams;
 import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 
+import static io.wisetime.connector.patricia.PatriciaDao.PostTimeData;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -50,7 +48,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   private static final Faker FAKER = new Faker();
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
   private static PatriciaDao patriciaDao = mock(PatriciaDao.class);
-  private static BillingService billingService = mock(BillingService.class);
   private static ApiClient apiClient = mock(ApiClient.class);
   private static ConnectorStore connectorStore = mock(ConnectorStore.class);
   private static PatriciaConnector connector;
@@ -64,7 +61,6 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
-      binder.bind(BillingService.class).toProvider(() -> billingService);
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
@@ -78,7 +74,6 @@ class PatriciaConnectorPerformTimePostingHandling {
     reset(patriciaDao);
     reset(apiClient);
     reset(connectorStore);
-    reset(billingService);
     doAnswer(invocation -> {
       ((Runnable) invocation.getArgument(0)).run();
       return null;
@@ -185,7 +180,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .as("no cases matches tags")
         .isEqualTo(PostResult.SUCCESS);
 
-    PostTimeCommonParams expectedParams = ImmutablePostTimeCommonParams.builder()
+    PostTimeData expectedParams = ImmutablePostTimeData.builder()
         .caseId(caseId)
         .experienceWeightingPercent(timeGroup.getUser().getExperienceWeightingPercent())
         .loginId(userLogin)
@@ -198,7 +193,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     int expectedChargeable = (int) Math
         .round(timeGroup.getTotalDurationSecs() * timeGroup.getUser().getExperienceWeightingPercent()
             / 100. / timeGroup.getTags().size());
-    verify(billingService, times(1))
+    verify(patriciaDao, times(1))
         .calculateBilling(expectedParams, expectedChargeable, expectedWorked);
     verify(patriciaDao, times(1)).updateBudgetHeader(caseId);
     verify(patriciaDao, times(1))
@@ -225,7 +220,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .as("no cases matches tags")
         .isEqualTo(PostResult.SUCCESS);
 
-    PostTimeCommonParams expectedParams = ImmutablePostTimeCommonParams.builder()
+    PostTimeData expectedParams = ImmutablePostTimeData.builder()
         .caseId(caseId)
         .experienceWeightingPercent(timeGroup.getUser().getExperienceWeightingPercent())
         .loginId(userLogin)
@@ -239,7 +234,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .round(timeGroup.getTotalDurationSecs() * timeGroup.getUser().getExperienceWeightingPercent()
             / 100. / timeGroup.getTags().size());
     verify(templateFormatter, times(1)).format(timeGroup);
-    verify(billingService, times(1))
+    verify(patriciaDao, times(1))
         .calculateBilling(expectedParams, expectedChargeable, expectedWorked);
     verify(patriciaDao, times(1)).updateBudgetHeader(caseId);
     verify(patriciaDao, times(1))

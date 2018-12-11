@@ -100,8 +100,8 @@ class PatriciaConnectorPerformTagUpdateTest {
 
   @Test
   void performTagUpdate_new_cases_found() throws IOException {
-    final PatriciaDao.PatriciaCase case1 = randomDataGenerator.randomCase();
-    final PatriciaDao.PatriciaCase case2 = randomDataGenerator.randomCase();
+    final PatriciaDao.Case case1 = randomDataGenerator.randomCase();
+    final PatriciaDao.Case case2 = randomDataGenerator.randomCase();
 
     when(connectorStore.getLong(anyString())).thenReturn(Optional.empty());
 

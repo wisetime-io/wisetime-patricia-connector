@@ -4,7 +4,6 @@
 
 package io.wisetime.connector.patricia;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.apache.commons.lang3.StringUtils;
@@ -27,10 +26,6 @@ import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.integrate.WiseTimeConnector;
-import io.wisetime.connector.patricia.posting_time.BillingData;
-import io.wisetime.connector.patricia.posting_time.BillingService;
-import io.wisetime.connector.patricia.posting_time.ImmutablePostTimeCommonParams;
-import io.wisetime.connector.patricia.posting_time.PostTimeCommonParams;
 import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
@@ -39,6 +34,9 @@ import io.wisetime.generated.connect.UpsertTagRequest;
 import spark.Request;
 
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
+import static io.wisetime.connector.patricia.PatriciaDao.BillingData;
+import static io.wisetime.connector.patricia.PatriciaDao.Case;
+import static io.wisetime.connector.patricia.PatriciaDao.PostTimeData;
 import static io.wisetime.connector.utils.TagDurationCalculator.tagDuration;
 
 /**
@@ -48,48 +46,55 @@ import static io.wisetime.connector.utils.TagDurationCalculator.tagDuration;
  */
 public class PatriciaConnector implements WiseTimeConnector {
 
-  @VisibleForTesting
-  static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
   private static final Logger log = LoggerFactory.getLogger(PatriciaConnector.class);
+
+  static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
+
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
   private TemplateFormatter templateFormatter;
 
+  private String defaultModifier;
+  private Map<String, String> modifierWorkCodeMap;
+
   @Inject
   private PatriciaDao patriciaDao;
-  @Inject
-  private BillingService billingService;
-  private String defaultModifier;
-  private Map<String, String> modifierMapping;
 
   @Override
   public void init(final ConnectorModule connectorModule) {
     Preconditions.checkArgument(patriciaDao.isHealthy(),
         "Patricia Database connection is not healthy");
-    prepareModifiers();
+    initializeModifiers();
+
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
     this.templateFormatter = connectorModule.getTemplateFormatter();
   }
 
-  private void prepareModifiers() {
+  private void initializeModifiers() {
     defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
         .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
-    modifierMapping = Arrays.stream(RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS)
-        .orElseThrow(() ->
-            new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
-        .split(","))
-        .map(tagModifierMapping -> {
-          String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
-          if (modifierAndWorkCode.length != 2) {
-            throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
-                + "Expecting modifier:workCode, got: " + tagModifierMapping);
-          }
-          return modifierAndWorkCode;
-        })
-        .collect(Collectors.toMap(modifierAndWorkCode -> modifierAndWorkCode[0],
-            modifierAndWorkCode -> modifierAndWorkCode[1]));
-    Preconditions.checkArgument(modifierMapping.containsKey(defaultModifier),
+
+    modifierWorkCodeMap =
+        Arrays.stream(
+            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS)
+              .orElseThrow(() ->
+                  new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
+              .split(","))
+            .map(tagModifierMapping -> {
+              String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
+              if (modifierAndWorkCode.length != 2) {
+                throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
+                    + "Expecting modifier:workCode, got: " + tagModifierMapping);
+              }
+              return modifierAndWorkCode;
+            })
+            .collect(Collectors.toMap(
+                modifierWorkCodePair -> modifierWorkCodePair[0],
+                modifierWorkCodePair -> modifierWorkCodePair[1])
+            );
+
+    Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
         "Patricia modifiers mapping should include work code for default modifier");
   }
 
@@ -102,7 +107,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     while (true) {
       final Optional<Long> storedLastSyncedCaseId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY);
 
-      final List<PatriciaDao.PatriciaCase> newCases = patriciaDao.findCasesOrderById(
+      final List<Case> newCases = patriciaDao.findCasesOrderById(
           storedLastSyncedCaseId.orElse(0L),
           tagUpsertBatchSize()
       );
@@ -128,19 +133,6 @@ public class PatriciaConnector implements WiseTimeConnector {
         }
       }
     }
-  }
-
-  private int tagUpsertBatchSize() {
-    return RuntimeConfig
-        .getInt(PatriciaConnectorConfigKey.TAG_UPSERT_BATCH_SIZE)
-        // A large batch mitigates query round trip latency
-        .orElse(500);
-  }
-
-  private String tagUpsertPath() {
-    return RuntimeConfig
-        .getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH)
-        .orElse("/Patricia/");
   }
 
   /**
@@ -195,7 +187,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     try {
       patriciaDao.asTransaction(() ->
           caseIdTagMap.forEach((caseId, tag) -> {
-            final PostTimeCommonParams commonParams = ImmutablePostTimeCommonParams.builder()
+            final PostTimeData commonParams = ImmutablePostTimeData.builder()
                 .caseId(caseId)
                 .experienceWeightingPercent(userPostedTime.getUser().getExperienceWeightingPercent())
                 .loginId(userLogin.get())
@@ -203,7 +195,9 @@ public class PatriciaConnector implements WiseTimeConnector {
                 .recordalDate(dbDate.get())
                 .caseName(tag.getName())
                 .build();
-            final BillingData billingData = billingService.calculateBilling(commonParams, workedTime, actualWorkedTimeSecs);
+            final BillingData billingData = patriciaDao.calculateBilling(
+                commonParams, workedTime, actualWorkedTimeSecs
+            );
 
             patriciaDao.updateBudgetHeader(caseId);
             patriciaDao.addTimeRegistration(commonParams, billingData, comment);
@@ -224,7 +218,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .map(TimeRow::getModifier)
         .map(modifier -> StringUtils.defaultIfEmpty(modifier, defaultModifier))
         .distinct()
-        .map(modifierMapping::get)
+        .map(modifierWorkCodeMap::get)
         .collect(Collectors.toList());
     if (workCodes.size() != 1) {
       throw new IllegalStateException("All time logs within time group should have same modifier, but got:"
@@ -235,6 +229,19 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private Optional<String> callerKey() {
     return RuntimeConfig.getString(ConnectorConfigKey.CALLER_KEY);
+  }
+
+  private int tagUpsertBatchSize() {
+    return RuntimeConfig
+        .getInt(PatriciaConnectorConfigKey.TAG_UPSERT_BATCH_SIZE)
+        // A large batch mitigates query round trip latency
+        .orElse(500);
+  }
+
+  private String tagUpsertPath() {
+    return RuntimeConfig
+        .getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH)
+        .orElse("/Patricia/");
   }
 
   @Override

@@ -1,13 +1,14 @@
-package io.wisetime.connector.patricia.posting_time;
+package io.wisetime.connector.patricia;
 
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 import com.github.javafaker.Faker;
 
+import org.apache.commons.lang3.StringUtils;
 import org.assertj.core.util.Lists;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -15,120 +16,141 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import io.wisetime.connector.patricia.PatriciaDao;
-import io.wisetime.connector.patricia.RandomDataGenerator;
+import io.wisetime.connector.config.RuntimeConfig;
+import io.wisetime.generated.connect.UpsertTagRequest;
 
+import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
+import static io.wisetime.connector.patricia.PatriciaDao.Case;
+import static io.wisetime.connector.patricia.PatriciaDao.Discount;
+import static io.wisetime.connector.patricia.PatriciaDao.PostTimeData;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
  * @author vadym
  */
-class BillingServiceTest {
+class PatriciaDaoHelperTest {
 
   private static final RandomDataGenerator GENERATOR = new RandomDataGenerator();
   private static final Faker FAKER = new Faker();
-  private static PatriciaDao patriciaDao;
-  private static BillingService billingService;
+
+  private static PatriciaDao patriciaDaoWithMockQuery;
 
   @BeforeAll
-  public static void setup() {
-    patriciaDao = Mockito.mock(PatriciaDao.class);
-    billingService = new BillingService(patriciaDao);
-  }
+  static void setup() {
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_URL, "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1");
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_USERNAME, "test");
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_PASSWORD, "test");
 
-  @BeforeEach
-  public void reset() {
-    Mockito.reset(patriciaDao);
+    final Injector injector = Guice.createInjector(
+        new ConnectorLauncher.PatriciaDbModule()
+    );
+
+    patriciaDaoWithMockQuery = spy(injector.getInstance(PatriciaDao.class));
   }
 
   @Test
-  public void calculateBilling_noCurrency() {
-    PostTimeCommonParams commonParams = GENERATOR.randomPostTimeCommonParams();
+  public void toUpsertTagRequest() {
+    Case patCase = new RandomDataGenerator().randomCase();
+    String path = new Faker().lorem().word();
+    UpsertTagRequest upsertTagRequest = patCase.toUpsertTagRequest(path);
+    assertThat(upsertTagRequest)
+        .as("check patricia case path to UpsertTagRequest mapping")
+        .returns(path, UpsertTagRequest::getPath)
+        .as("check patricia case name to UpsertTagRequest mapping")
+        .returns(patCase.caseNumber(), UpsertTagRequest::getName)
+        .as("check patricia case description to UpsertTagRequest mapping")
+        .returns(StringUtils.trimToEmpty(patCase.caseCatchWord()), UpsertTagRequest::getDescription);
+  }
 
-    assertThatThrownBy(() -> billingService.calculateBilling(commonParams,
+  @Test
+  void calculateBilling_noCurrency() {
+    PostTimeData commonParams = GENERATOR.randomPostTimeCommonParams();
+
+    assertThatThrownBy(() -> patriciaDaoWithMockQuery.calculateBilling(commonParams,
         FAKER.number().numberBetween(0, 1000), FAKER.number().numberBetween(0, 1000)))
         .hasMessage("Could not find external system currency for case %s", commonParams.caseName());
   }
 
   @Test
-  public void calculateBilling_noHourlyRate() {
-    PostTimeCommonParams commonParams = GENERATOR.randomPostTimeCommonParams();
-    when(patriciaDao.findCurrency(commonParams.caseId())).thenReturn(Optional.of("USD"));
+  void calculateBilling_noHourlyRate() {
+    PostTimeData commonParams = GENERATOR.randomPostTimeCommonParams();
+    when(patriciaDaoWithMockQuery.findCurrency(commonParams.caseId())).thenReturn(Optional.of("USD"));
 
-    assertThatThrownBy(() -> billingService.calculateBilling(commonParams,
+    assertThatThrownBy(() -> patriciaDaoWithMockQuery.calculateBilling(commonParams,
         FAKER.number().numberBetween(0, 1000), FAKER.number().numberBetween(0, 1000)))
         .hasMessage("Could not find external system case hourly rate.");
   }
 
   @Test
-  public void getDurationByPercentage() {
-    assertThat(billingService.getDurationByPercentage(33, 50))
+  void getDurationByPercentage() {
+    assertThat(patriciaDaoWithMockQuery.getDurationByPercentage(33, 50))
         .as("expected 50% rounding down")
         .isEqualTo(16);
   }
 
   @Test
-  public void calculateDurationToHours() {
-    assertThat(billingService.calculateDurationToHours(30 * 60))
+  void calculateDurationToHours() {
+    assertThat(patriciaDaoWithMockQuery.calculateDurationToHours(30 * 60))
         .as("Check 30 minutes")
         .isEqualTo(BigDecimal.valueOf(50, 2));
-    assertThat(billingService.calculateDurationToHours( 60))
+    assertThat(patriciaDaoWithMockQuery.calculateDurationToHours(60))
         .as("Check 1 minute (round half up)")
         .isEqualTo(BigDecimal.valueOf(2, 2));
   }
 
   @Test
-  public void calculateDiscountedBillingAmount() {
+  void calculateDiscountedBillingAmount() {
     BigDecimal workedHours = BigDecimal.valueOf(2.50);
     BigDecimal hourlyRate = BigDecimal.valueOf(25);
 
-    PatriciaDiscountRecord fixedDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Discount fixedDiscount = ImmutableDiscount.builder()
         .discountPercent(BigDecimal.ZERO)
         .amount(BigDecimal.valueOf(10))
         .build();
-    assertThat(billingService.calculateDiscountedBillingAmount(fixedDiscount, workedHours, hourlyRate))
+    assertThat(patriciaDaoWithMockQuery.calculateDiscountedBillingAmount(fixedDiscount, workedHours, hourlyRate))
         .as("check fixed discount")
         .isEqualTo(BigDecimal.valueOf(5250, 2));
 
-    PatriciaDiscountRecord percentageDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Discount percentageDiscount = ImmutableDiscount.builder()
         .discountPercent(BigDecimal.valueOf(10))
         .amount(BigDecimal.valueOf(10))
         .build();
-    assertThat(billingService.calculateDiscountedBillingAmount(percentageDiscount, workedHours, hourlyRate))
+    assertThat(patriciaDaoWithMockQuery.calculateDiscountedBillingAmount(percentageDiscount, workedHours, hourlyRate))
         .as("check percentage discount")
         .isEqualTo(BigDecimal.valueOf(5625, 2));
   }
 
   @Test
-  public void calculateMarkedUpBillingAmount() {
+  void calculateMarkedUpBillingAmount() {
     BigDecimal workedHours = BigDecimal.valueOf(2.50);
     BigDecimal hourlyRate = BigDecimal.valueOf(25);
 
-    PatriciaDiscountRecord fixedDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Discount fixedDiscount = ImmutableDiscount.builder()
         .discountPercent(BigDecimal.ZERO)
         .amount(BigDecimal.valueOf(10))
         .build();
-    assertThat(billingService.calculateMarkedUpBillingAmount(fixedDiscount, workedHours, hourlyRate))
+    assertThat(patriciaDaoWithMockQuery.calculateMarkedUpBillingAmount(fixedDiscount, workedHours, hourlyRate))
         .as("check fixed discount")
         .isEqualTo(BigDecimal.valueOf(7250, 2));
 
-    PatriciaDiscountRecord percentageDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Discount percentageDiscount = ImmutableDiscount.builder()
         .discountPercent(BigDecimal.valueOf(10))
         .amount(BigDecimal.valueOf(10))
         .build();
-    assertThat(billingService.calculateMarkedUpBillingAmount(percentageDiscount, workedHours, hourlyRate))
+    assertThat(patriciaDaoWithMockQuery.calculateMarkedUpBillingAmount(percentageDiscount, workedHours, hourlyRate))
         .as("check percentage discount")
         .isEqualTo(BigDecimal.valueOf(6875, 2));
   }
 
   @Test
-  public void computeWorkedHours() {
-    int workedSecs = 9000;//2.5h
+  void computeWorkedHours() {
+    int workedSecs = 9000; //2.5h
     BigDecimal hourlyRate = BigDecimal.valueOf(25);
 
-    assertThat(billingService.computeWorkedHours(workedSecs, hourlyRate, Optional.empty()))
+    assertThat(patriciaDaoWithMockQuery.computeWorkedHours(workedSecs, hourlyRate, Optional.empty()))
         .as("check without discount")
         .isEqualTo(ImmutableWorkedHoursComputation.builder()
             .totalHours(BigDecimal.valueOf(250, 2))
@@ -138,12 +160,12 @@ class BillingServiceTest {
             .discountedHourlyRate(hourlyRate.setScale(2, BigDecimal.ROUND_HALF_UP))
             .build());
 
-    PatriciaDiscountRecord pureDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Discount  pureDiscount = ImmutableDiscount.builder()
         .discountPercent(BigDecimal.ZERO)
         .amount(BigDecimal.valueOf(10))
-        .discountType(BillingService.PURE_DISCOUNT)
+        .discountType(PatriciaDao.PURE_DISCOUNT)
         .build();
-    assertThat(billingService.computeWorkedHours(workedSecs, hourlyRate, Optional.of(pureDiscount)))
+    assertThat(patriciaDaoWithMockQuery.computeWorkedHours(workedSecs, hourlyRate, Optional.of(pureDiscount)))
         .as("check pure discount")
         .isEqualTo(ImmutableWorkedHoursComputation.builder()
             .totalHours(BigDecimal.valueOf(250, 2))
@@ -153,12 +175,12 @@ class BillingServiceTest {
             .discountedHourlyRate(BigDecimal.valueOf(2100, 2))
             .build());
 
-    PatriciaDiscountRecord markUpDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Discount  markUpDiscount = ImmutableDiscount.builder()
         .discountPercent(BigDecimal.valueOf(10))
         .amount(BigDecimal.valueOf(10))
-        .discountType(BillingService.MARK_UP_DISCOUNT)
+        .discountType(PatriciaDao.MARK_UP_DISCOUNT)
         .build();
-    assertThat(billingService.computeWorkedHours(workedSecs, hourlyRate, Optional.of(markUpDiscount)))
+    assertThat(patriciaDaoWithMockQuery.computeWorkedHours(workedSecs, hourlyRate, Optional.of(markUpDiscount)))
         .as("check mark up discount")
         .isEqualTo(ImmutableWorkedHoursComputation.builder()
             .totalHours(BigDecimal.valueOf(250, 2))
@@ -171,19 +193,19 @@ class BillingServiceTest {
 
   @Test
   public void sortDiscountsByHighestPriority() {
-    PatriciaDiscountRecord highestPriority = ImmutablePatriciaDiscountRecord.builder()
+    Discount highestPriority = ImmutableDiscount.builder()
         .priority(10)
         .build();
-    PatriciaDiscountRecord midPriority = ImmutablePatriciaDiscountRecord.builder()
+    Discount midPriority = ImmutableDiscount.builder()
         .priority(5)
         .build();
-    PatriciaDiscountRecord lowestPriority = ImmutablePatriciaDiscountRecord.builder()
+    Discount lowestPriority = ImmutableDiscount.builder()
         .priority(1)
         .build();
-    List<PatriciaDiscountRecord> discounts = Lists.newArrayList(highestPriority, midPriority, lowestPriority);
+    List<Discount> discounts = Lists.newArrayList(highestPriority, midPriority, lowestPriority);
     Collections.shuffle(discounts);
 
-    billingService.sortDiscountsByHighestPriority(discounts);
+    patriciaDaoWithMockQuery.sortDiscountsByHighestPriority(discounts);
 
     assertThat(discounts)
         .as("check discounts ordered by priority")
@@ -192,26 +214,26 @@ class BillingServiceTest {
 
   @Test
   public void assertDiscountHasNoSamePriority() {
-    PatriciaDiscountRecord priority10 = ImmutablePatriciaDiscountRecord.builder()
+    Discount priority10 = ImmutableDiscount.builder()
         .priority(10)
         .build();
-    PatriciaDiscountRecord priority1 = ImmutablePatriciaDiscountRecord.builder()
+    Discount priority1 = ImmutableDiscount.builder()
         .priority(1)
         .build();
 
     //same discount should not trigger assert
-    billingService.assertDiscountHasNoSamePriority(priority10, Arrays.asList(priority10, priority1));
+    patriciaDaoWithMockQuery.assertDiscountHasNoSamePriority(priority10, Arrays.asList(priority10, priority1));
 
     //no discount with same priority
-    billingService.assertDiscountHasNoSamePriority(ImmutablePatriciaDiscountRecord.builder()
+    patriciaDaoWithMockQuery.assertDiscountHasNoSamePriority(ImmutableDiscount.builder()
         .priority(5)
         .build(), Arrays.asList(priority10, priority1));
 
-    PatriciaDiscountRecord anotherDiscountPriority10 = ImmutablePatriciaDiscountRecord.builder()
+    Discount anotherDiscountPriority10 = ImmutableDiscount.builder()
         .priority(10)
         .stateId(FAKER.lorem().word())
         .build();
-    assertThatThrownBy(() -> billingService.assertDiscountHasNoSamePriority(anotherDiscountPriority10,
+    assertThatThrownBy(() -> patriciaDaoWithMockQuery.assertDiscountHasNoSamePriority(anotherDiscountPriority10,
         Arrays.asList(priority10, priority1)))
         .as("there is another discount with same priority - exception expected")
         .hasMessage("Indistinct discount policy for case/person combination detected. Please resolve.");
@@ -220,45 +242,46 @@ class BillingServiceTest {
   @Test
   public void findDiscountMatchingPatriciaCase() {
     int caseId = FAKER.number().numberBetween(1, 10000);
-    PatriciaCaseRecord patriciaCaseRecord = GENERATOR.randomPatriciaCaseRecord();
-    PatriciaDiscountRecord notMatchingDiscount = ImmutablePatriciaDiscountRecord.builder()
+    Case patriciaCaseRecord = GENERATOR.randomCase();
+    Discount notMatchingDiscount = ImmutableDiscount.builder()
         .priority(10)
         .caseTypeId(patriciaCaseRecord.caseTypeId() + 1)
         .applicationTypeId(patriciaCaseRecord.appId() + 1)
         .stateId(FAKER.crypto().md5())
         .build();
-    PatriciaDiscountRecord matches = ImmutablePatriciaDiscountRecord.builder()
+    Discount matches = ImmutableDiscount.builder()
         .priority(10)
         .caseTypeId(patriciaCaseRecord.caseTypeId())
         .applicationTypeId(patriciaCaseRecord.appId())
         .stateId(patriciaCaseRecord.stateId())
         .build();
-    PatriciaDiscountRecord nullFilters = ImmutablePatriciaDiscountRecord.builder()
+    Discount nullFilters = ImmutableDiscount.builder()
         .priority(10)
         .caseTypeId(null)
         .applicationTypeId(null)
         .stateId(null)
         .build();
 
-    assertThat(billingService.findDiscountMatchingPatriciaCase(
+    assertThat(patriciaDaoWithMockQuery.findDiscountMatchingPatriciaCase(
         Collections.singletonList(matches), caseId))
         .as("check when no record in db for requested case")
         .isEmpty();
 
-    when(patriciaDao.findPatCaseData(caseId)).thenReturn(Optional.of(patriciaCaseRecord));
+    when(patriciaDaoWithMockQuery.findPatCaseData(caseId)).thenReturn(Optional.of(patriciaCaseRecord));
 
-    assertThat(billingService.findDiscountMatchingPatriciaCase(Collections.singletonList(notMatchingDiscount), caseId))
+    assertThat(patriciaDaoWithMockQuery
+        .findDiscountMatchingPatriciaCase(Collections.singletonList(notMatchingDiscount), caseId))
         .as("check when discount not matched")
         .isEmpty();
 
 
-    assertThat(billingService.findDiscountMatchingPatriciaCase(
+    assertThat(patriciaDaoWithMockQuery.findDiscountMatchingPatriciaCase(
         Collections.singletonList(nullFilters), caseId))
         .as("check when case type null")
         .contains(nullFilters);
 
 
-    assertThat(billingService.findDiscountMatchingPatriciaCase(
+    assertThat(patriciaDaoWithMockQuery.findDiscountMatchingPatriciaCase(
         Collections.singletonList(matches), caseId))
         .as("check when case type matched")
         .contains(matches);
@@ -269,36 +292,36 @@ class BillingServiceTest {
     String workCodeId = FAKER.crypto().md5();
     int caseId = FAKER.number().numberBetween(1, 10000);
 
-    PatriciaCaseRecord patriciaCaseRecord = GENERATOR.randomPatriciaCaseRecord();
+    Case patriciaCaseRecord = GENERATOR.randomCase();
 
-    PatriciaDiscountRecord highestPriority = ImmutablePatriciaDiscountRecord.builder()
+    Discount highestPriority = ImmutableDiscount.builder()
         .priority(10)
         .stateId(FAKER.crypto().md5())
         .build();
-    PatriciaDiscountRecord midPriority = ImmutablePatriciaDiscountRecord.builder()
+    Discount midPriority = ImmutableDiscount.builder()
         .priority(5)
         .stateId(patriciaCaseRecord.stateId())
         .build();
-    PatriciaDiscountRecord lowestPriority = ImmutablePatriciaDiscountRecord.builder()
+    Discount lowestPriority = ImmutableDiscount.builder()
         .priority(1)
         .stateId(FAKER.crypto().md5())
         .build();
 
-    assertThat(billingService.findMostApplicableDiscount(workCodeId, caseId))
+    assertThat(patriciaDaoWithMockQuery.findMostApplicableDiscount(workCodeId, caseId))
         .as("check when no discounts")
         .isEmpty();
 
-    when(patriciaDao.findDiscountRecords(workCodeId, caseId))
+    when(patriciaDaoWithMockQuery.findDiscountRecords(workCodeId, caseId))
         .thenReturn(Arrays.asList(lowestPriority, midPriority, highestPriority));
 
-    assertThat(billingService.findMostApplicableDiscount(workCodeId, caseId))
+    assertThat(patriciaDaoWithMockQuery.findMostApplicableDiscount(workCodeId, caseId))
         .as("check when no discounts matched - expecting general discount with highest priority")
         .contains(highestPriority);
 
-    when(patriciaDao.findPatCaseData(caseId))
+    when(patriciaDaoWithMockQuery.findPatCaseData(caseId))
         .thenReturn(Optional.of(patriciaCaseRecord));
 
-    assertThat(billingService.findMostApplicableDiscount(workCodeId, caseId))
+    assertThat(patriciaDaoWithMockQuery.findMostApplicableDiscount(workCodeId, caseId))
         .as("check discount matches case")
         .contains(midPriority);
   }
