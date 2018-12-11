@@ -57,7 +57,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   static void setUp() {
     RuntimeConfig.rebuild();
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "test");
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS, "test:1");
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "test:1");
 
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
@@ -82,7 +82,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @AfterEach
   void cleanup() {
-    RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_TIME_COMMENT_INVOICE);
+    RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
   }
 
   @Test
@@ -163,7 +163,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_explicitNarrative() {
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_TIME_COMMENT_INVOICE, "custom_comment");
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
     TimeGroup timeGroup = randomDataGenerator.randomTimeGroup();
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
@@ -184,7 +184,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .caseId(caseId)
         .experienceWeightingPercent(timeGroup.getUser().getExperienceWeightingPercent())
         .loginId(userLogin)
-        //see value of ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS
+        //see value of ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING
         .workCodeId("1")
         .recordalDate(dbDate)
         .caseName(tag.getName())
@@ -224,7 +224,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .caseId(caseId)
         .experienceWeightingPercent(timeGroup.getUser().getExperienceWeightingPercent())
         .loginId(userLogin)
-        //see value of ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS
+        //see value of ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING
         .workCodeId("1")
         .recordalDate(dbDate)
         .caseName(tag.getName())

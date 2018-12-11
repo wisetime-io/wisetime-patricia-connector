@@ -29,7 +29,7 @@ import io.wisetime.connector.config.RuntimeConfigKey;
 public class ConnectorLauncher {
 
   public static void main(final String... args) throws Exception {
-    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_TIME_DURATION_TO_COMMENT)
+    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
         .map(Boolean::parseBoolean).orElse(false);
     ServerRunner.createServerBuilder()
         .withTemplatePath(includeTimeDuration
@@ -52,15 +52,15 @@ public class ConnectorLauncher {
     PATRICIA_JDBC_USERNAME("PATRICIA_JDBC_USERNAME"),
     PATRICIA_JDBC_PASSWORD("PATRICIA_JDBC_PASSWORD"),
     PATRICIA_ROLE_TYPE_ID("PATRICIA_ROLE_TYPE_ID"),
-    TAG_MODIFIER_MAPPINGS("TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS"),
+    TAG_MODIFIER_WORK_CODE_MAPPING("TAG_MODIFIER_WORK_CODE_MAPPING"),
     DEFAULT_MODIFIER("DEFAULT_MODIFIER"),
 
     //optional
     TAG_UPSERT_PATH("TAG_UPSERT_PATH"),
     TAG_UPSERT_BATCH_SIZE("TAG_UPSERT_BATCH_SIZE"),
     TIMEZONE("TIMEZONE"),
-    PATRICIA_TIME_COMMENT_INVOICE("PATRICIA_TIME_COMMENT_INVOICE"),
-    INCLUDE_TIME_DURATION_TO_COMMENT("INCLUDE_TIME_DURATION_TO_COMMENT");
+    INVOICE_COMMENT_OVERRIDE("INVOICE_COMMENT_OVERRIDE"),
+    INCLUDE_DURATIONS_IN_INVOICE_COMMENT("INCLUDE_DURATIONS_IN_INVOICE_COMMENT");
 
     private final String configKey;
 

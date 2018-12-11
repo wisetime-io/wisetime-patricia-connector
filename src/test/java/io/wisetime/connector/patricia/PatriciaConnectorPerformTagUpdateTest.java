@@ -54,7 +54,7 @@ class PatriciaConnectorPerformTagUpdateTest {
   static void setUp() {
     RuntimeConfig.rebuild();
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "test");
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS, "test:1");
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "test:1");
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
     }).getInstance(PatriciaConnector.class);

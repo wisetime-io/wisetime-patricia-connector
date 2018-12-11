@@ -77,7 +77,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     modifierWorkCodeMap =
         Arrays.stream(
-            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_MAPPINGS)
+            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
               .orElseThrow(() ->
                   new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
               .split(","))
@@ -182,7 +182,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .sum();
 
     //todo (vs) internal & public template logic
-    final String comment = RuntimeConfig.getString(PatriciaConnectorConfigKey.PATRICIA_TIME_COMMENT_INVOICE)
+    final String comment = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE)
         .orElseGet(() -> templateFormatter.format(userPostedTime));
     try {
       patriciaDao.asTransaction(() ->
