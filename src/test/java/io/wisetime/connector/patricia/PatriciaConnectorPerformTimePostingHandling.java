@@ -344,7 +344,10 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).hourlyRate())
         .as("currency should be set")
         .isEqualTo(hourlyRate);
-    assertThat(budgetLines.get(0).chargeAmount())
+    assertThat(budgetLines.get(0).actualWorkTotalAmount())
+        .as("hourly rate * actual hours (without experience rating)")
+        .isEqualByComparingTo(BigDecimal.valueOf(1.40));
+    assertThat(budgetLines.get(0).chargeableAmount())
         .as("hourly rate * chargeable hours (applying experience rating)")
         .isEqualByComparingTo(BigDecimal.valueOf(.70));
     assertThat(budgetLines.get(0).comment())

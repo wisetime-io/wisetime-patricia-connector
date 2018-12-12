@@ -304,6 +304,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .comment(params.timeRegComment())
         .build();
 
+    BigDecimal actualWorkTotalAmount = params.workedHoursWithoutExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithoutDiscount = params.workedHoursWithExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
         discount, params.workedHoursWithExpRating(), params.hourlyRate()
@@ -318,7 +319,8 @@ public class PatriciaConnector implements WiseTimeConnector {
         .hourlyRate(params.hourlyRate())
         .actualWorkTotalHours(params.workedHoursWithExpRating())
         .chargeableWorkTotalHours(params.workedHoursWithExpRating())
-        .chargeAmount(chargeWithDiscount)
+        .chargeableAmount(chargeWithDiscount)
+        .actualWorkTotalAmount(actualWorkTotalAmount)
         .discountAmount(ChargeCalculator.calculateDiscountAmount(chargeWithoutDiscount, chargeWithDiscount))
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
         .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.workedHoursWithExpRating()))

@@ -7,6 +7,7 @@ package io.wisetime.connector.patricia;
 import com.google.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
 import org.codejargon.fluentjdbc.api.mapper.Mappers;
@@ -195,12 +196,67 @@ public class PatriciaDao {
         .run();
   }
 
-  public void addBudgetLine(BudgetLine budgetLine) {
-    // TODO: Implement
+  void addBudgetLine(BudgetLine budgetLine) {
+    fluentJdbc.query().update(
+        "INSERT INTO budget_line ("
+            + "  b_l_seq_number,"
+            + "  work_code_id,"
+            + "  b_l_quantity,"
+            + "  b_l_org_quantity,"
+            + "  b_l_unit_price,"
+            + "  b_l_org_unit_price,"
+            + "  b_l_unit_price_no_discount,"
+            + "  deb_handlagg,"
+            + "  b_l_amount,"
+            + "  b_l_org_amount,"
+            + "  case_id,"
+            + "  show_time_comment,"
+            + "  registered_by,"
+            + "  earliest_inv_date,"
+            + "  b_l_comment,"
+            + "  recorded_date,"
+            + "  discount_prec,"
+            + "  discount_amount,"
+            + "  currency_id,"
+            + "  exchange_rate"
+            + ")"
+            + "VALUES ("
+            + "  :bsn, :wc, :dt, :wt, :upd, :upd, :up, :li, :ttlblamt, :ttlbloamt, :cid, "
+            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er"
+            + ")"
+    )
+        .namedParam("bsn", findNextBudgetLineSeqNum(budgetLine.caseId()))
+        .namedParam("wc", budgetLine.workCodeId())
+        .namedParam("dt", budgetLine.chargeableWorkTotalHours())
+        .namedParam("wt", budgetLine.actualWorkTotalHours())
+        .namedParam("upd", budgetLine.effectiveHourlyRate())
+        .namedParam("up", budgetLine.hourlyRate())
+        .namedParam("li", budgetLine.userId())
+        .namedParam("ttlblamt", budgetLine.chargeableAmount())
+        .namedParam("ttlbloamt", budgetLine.actualWorkTotalAmount())
+        .namedParam("cid", budgetLine.caseId())
+        .namedParam("stc", 1)
+        .namedParam("eid", budgetLine.recordalDate())
+        .namedParam("tci", budgetLine.comment())
+        .namedParam("rd", budgetLine.recordalDate())
+        .namedParam("discperc", budgetLine.discountPercentage())
+        .namedParam("discamt", budgetLine.discountAmount())
+        .namedParam("cur", budgetLine.currency())
+        .namedParam("er", 1)
+        .run();
   }
 
   Optional<String> getDbDate() {
     return fluentJdbc.query().select("SELECT getdate()").firstResult(Mappers.singleString());
+  }
+
+  int findNextBudgetLineSeqNum(long caseId) {
+    return fluentJdbc.query()
+        .select("SELECT MAX(b_l_seq_number)+1 FROM budget_line bl WHERE bl.case_id = ?")
+        .params(caseId)
+        .firstResult(rs -> NumberUtils.toInt(rs.getString(1), 1))
+        .orElse(1);
+
   }
 
   private ImmutableCase mapToCase(ResultSet rs) throws SQLException {
@@ -369,7 +425,9 @@ public class PatriciaDao {
 
     BigDecimal chargeableWorkTotalHours();
 
-    BigDecimal chargeAmount();
+    BigDecimal actualWorkTotalAmount();
+
+    BigDecimal chargeableAmount();
 
     BigDecimal discountPercentage();
 

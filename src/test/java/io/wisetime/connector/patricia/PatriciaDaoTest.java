@@ -37,6 +37,7 @@ import io.wisetime.connector.config.RuntimeConfig;
 
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaDbModule;
+import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 import static io.wisetime.connector.patricia.PatriciaDao.DiscountPriority;
@@ -95,6 +96,7 @@ class PatriciaDaoTest {
     query.update("DELETE FROM pat_person_hourly_rate").run();
     query.update("DELETE FROM budget_header").run();
     query.update("DELETE FROM time_registration").run();
+    query.update("DELETE FROM budget_line").run();
     removeAllDiscounts();
   }
 
@@ -139,9 +141,9 @@ class PatriciaDaoTest {
 
   @Test
   void findCurrency() {
-    int caseId = FAKER.number().randomDigit();
-    int roleTypeId = FAKER.number().randomDigit();
-    int actorId = FAKER.number().randomDigit();
+    int caseId = FAKER.number().randomDigitNotZero();
+    int roleTypeId = FAKER.number().randomDigitNotZero();
+    int actorId = FAKER.number().randomDigitNotZero();
     String currency = FAKER.currency().code();
 
     fluentJdbc.query().update("INSERT INTO pat_names (name_id, currency_id) VALUES (?, ?)")
@@ -159,7 +161,7 @@ class PatriciaDaoTest {
 
   @Test
   void findUserHourlyRate() {
-    double personGeneralHourlyRate = FAKER.number().randomDigit();
+    double personGeneralHourlyRate = FAKER.number().randomDigitNotZero();
     double personHourlyRateForWorkCode = personGeneralHourlyRate + 10;
 
     savePerson("username1", "username1@email.com", personGeneralHourlyRate);
@@ -181,10 +183,10 @@ class PatriciaDaoTest {
 
   @Test
   void findDiscounts() {
-    int caseId = FAKER.number().randomDigit();
-    int roleTypeId = FAKER.number().randomDigit();
-    int actorId = FAKER.number().randomDigit();
-    int discountId = FAKER.number().randomDigit();
+    int caseId = FAKER.number().randomDigitNotZero();
+    int roleTypeId = FAKER.number().randomDigitNotZero();
+    int actorId = FAKER.number().randomDigitNotZero();
+    int discountId = FAKER.number().randomDigitNotZero();
     String workCode = FAKER.lorem().word();
 
     saveCasting(actorId, caseId, roleTypeId);
@@ -246,8 +248,8 @@ class PatriciaDaoTest {
         .workCodeId(FAKER.lorem().word())
         .userId(FAKER.name().firstName())
         .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
-        .actualHours(BigDecimal.valueOf(FAKER.number().randomDouble(2, 1, 10_000)))
-        .chargeableHours(BigDecimal.valueOf(FAKER.number().randomDouble(2, 1, 10_000)))
+        .actualHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .chargeableHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .comment(FAKER.lorem().sentence())
         .build();
 
@@ -291,6 +293,68 @@ class PatriciaDaoTest {
 
           return Void.TYPE;
         });
+  }
+
+  @Test
+  void addBudgetLine() {
+    final long caseId = FAKER.number().randomDigitNotZero();
+    final BudgetLine budgetLine = ImmutableBudgetLine.builder()
+        .caseId(caseId)
+        .workCodeId(FAKER.lorem().word())
+        .userId(FAKER.name().name())
+        .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .currency(FAKER.currency().code())
+        .hourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .effectiveHourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .actualWorkTotalHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .chargeableWorkTotalHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .actualWorkTotalAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .chargeableAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .discountPercentage(BigDecimal.valueOf(FAKER.number().numberBetween(10, 100)))
+        .discountAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .comment(FAKER.lorem().sentence())
+        .build();
+
+    patriciaDao.addBudgetLine(budgetLine);
+
+    fluentJdbc.query().select(
+        "SELECT b_l_seq_number, work_code_id, b_l_quantity, b_l_org_quantity, b_l_unit_price, " +
+            "   b_l_org_unit_price, b_l_unit_price_no_discount, deb_handlagg, b_l_amount, b_l_org_amount, case_id," +
+            "   show_time_comment, registered_by, earliest_inv_date, b_l_comment, recorded_date, discount_prec, " +
+            "   discount_amount, currency_id, exchange_rate" +
+            " FROM budget_line WHERE case_id = ?")
+        .params(caseId)
+        .singleResult(rs -> {
+          // assert if correct values are set
+          assertThat(rs.getInt(1))
+              .as("Initial sequence should be 1")
+              .isEqualTo(1);
+          assertThat(rs.getString(2)).isEqualTo(budgetLine.workCodeId());
+          assertThat(rs.getBigDecimal(3)).isEqualByComparingTo(budgetLine.chargeableWorkTotalHours());
+          assertThat(rs.getBigDecimal(4)).isEqualByComparingTo(budgetLine.actualWorkTotalHours());
+          assertThat(rs.getBigDecimal(5)).isEqualByComparingTo(budgetLine.effectiveHourlyRate());
+          assertThat(rs.getBigDecimal(6)).isEqualByComparingTo(budgetLine.effectiveHourlyRate());
+          assertThat(rs.getBigDecimal(7)).isEqualByComparingTo(budgetLine.hourlyRate());
+          assertThat(rs.getString(8)).isEqualTo(budgetLine.userId());
+          assertThat(rs.getBigDecimal(9)).isEqualByComparingTo(budgetLine.chargeableAmount());
+          assertThat(rs.getBigDecimal(10)).isEqualByComparingTo(budgetLine.actualWorkTotalAmount());
+          assertThat(rs.getLong(11)).isEqualTo(budgetLine.caseId());
+          assertThat(rs.getInt(12)).isEqualTo(1);
+          assertThat(rs.getString(13)).isEqualTo(budgetLine.userId());
+          assertThat(rs.getString(14)).isEqualTo(budgetLine.recordalDate());
+          assertThat(rs.getString(15)).isEqualTo(budgetLine.comment());
+          assertThat(rs.getString(16)).isEqualTo(budgetLine.recordalDate());
+          assertThat(rs.getBigDecimal(17)).isEqualByComparingTo(budgetLine.discountPercentage());
+          assertThat(rs.getBigDecimal(18)).isEqualByComparingTo(budgetLine.discountAmount());
+          assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());
+          assertThat(rs.getInt(20)).isEqualTo(1);
+
+          return Void.TYPE;
+        });
+
+    assertThat(patriciaDao.findNextBudgetLineSeqNum(caseId))
+        .as("next sequence number for budget line should be 2")
+        .isEqualTo(2);
   }
 
   private void saveCase(Case patCase) {
