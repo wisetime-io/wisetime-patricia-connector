@@ -154,8 +154,45 @@ public class PatriciaDao {
     }
   }
 
-  public void addTimeRegistration(TimeRegistration timeRegistration) {
-    // TODO: Implement
+  void addTimeRegistration(TimeRegistration timeRegistration) {
+    fluentJdbc.query().update(
+        "INSERT INTO time_registration ("
+            + "  work_code_id,"
+            + "  case_id,"
+            + "  registration_date_time,"
+            + "  login_id,"
+            + "  calendar_date,"
+            + "  worked_time,"
+            + "  debited_time,"
+            + "  time_transferred,"
+            + "  number_of_words,"
+            + "  worked_amount,"
+            + "  b_l_case_id,"
+            + "  time_comment_invoice,"
+            + "  time_comment,"
+            + "  time_reg_booked_date,"
+            + "  earliest_invoice_date"
+            + ")"
+            + "VALUES ("
+            + "  :wc, :cid, :rd, :li, :cd, :wt, :dt, :tt, :nw, :wa, :bci, :tci, :tc, :bd, :eid"
+            + ")"
+    )
+        .namedParam("wc", timeRegistration.workCodeId())
+        .namedParam("cid", timeRegistration.caseId())
+        .namedParam("rd", timeRegistration.recordalDate())
+        .namedParam("li", timeRegistration.userId())
+        .namedParam("cd", timeRegistration.recordalDate())
+        .namedParam("wt", timeRegistration.actualHours())
+        .namedParam("dt", timeRegistration.chargeableHours())
+        .namedParam("tt", "!")
+        .namedParam("nw", 0)
+        .namedParam("wa", "0.00")
+        .namedParam("bci", timeRegistration.caseId())
+        .namedParam("tci", timeRegistration.comment())
+        .namedParam("tc", timeRegistration.comment())
+        .namedParam("bd", timeRegistration.recordalDate())
+        .namedParam("eid", timeRegistration.recordalDate())
+        .run();
   }
 
   public void addBudgetLine(BudgetLine budgetLine) {

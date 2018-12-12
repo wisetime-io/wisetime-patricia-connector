@@ -40,6 +40,7 @@ import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaDbModule;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 import static io.wisetime.connector.patricia.PatriciaDao.DiscountPriority;
+import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -92,6 +93,8 @@ class PatriciaDaoTest {
     query.update("DELETE FROM casting").run();
     query.update("DELETE FROM pat_names").run();
     query.update("DELETE FROM pat_person_hourly_rate").run();
+    query.update("DELETE FROM budget_header").run();
+    query.update("DELETE FROM time_registration").run();
     removeAllDiscounts();
   }
 
@@ -233,6 +236,61 @@ class PatriciaDaoTest {
     assertThat(getBudgetHeaderEditDate(caseId))
         .as("should be able to update the budget header's record date")
         .isEqualTo(newRecordalDate);
+  }
+
+  @Test
+  void addTimeRegistration() {
+    final long caseId = FAKER.number().randomNumber();
+    final TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
+        .caseId(caseId)
+        .workCodeId(FAKER.lorem().word())
+        .userId(FAKER.name().firstName())
+        .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .actualHours(BigDecimal.valueOf(FAKER.number().randomDouble(2, 1, 10_000)))
+        .chargeableHours(BigDecimal.valueOf(FAKER.number().randomDouble(2, 1, 10_000)))
+        .comment(FAKER.lorem().sentence())
+        .build();
+
+    patriciaDao.addTimeRegistration(timeRegistration);
+
+    fluentJdbc.query().select(
+        "SELECT work_code_id, case_id, registration_date_time, login_id, calendar_date, worked_time, debited_time, " +
+            "   time_transferred, number_of_words, worked_amount, b_l_case_id, time_comment_invoice, time_comment, " +
+            "   time_reg_booked_date, earliest_invoice_date " +
+            " FROM time_registration WHERE case_id = ?")
+        .params(caseId)
+        .singleResult(rs -> {
+          assertThat(rs.getString(1))
+              .as("should have save correct work code id")
+              .isEqualTo(timeRegistration.workCodeId());
+          assertThat(rs.getLong(2))
+              .as("should have save correct case id")
+              .isEqualTo(timeRegistration.caseId());
+          assertThat(rs.getString(3))
+              .as("should have save correct recordal date")
+              .isEqualTo(timeRegistration.recordalDate());
+          assertThat(rs.getString(4))
+              .as("should have save correct user id date")
+              .isEqualTo(timeRegistration.userId());
+          assertThat(rs.getString(5))
+              .isEqualTo(timeRegistration.recordalDate());
+          assertThat(rs.getBigDecimal(6))
+              .as("should have set correct actual hours")
+              .isEqualByComparingTo(timeRegistration.actualHours());
+          assertThat(rs.getBigDecimal(7))
+              .as("should have set corrrect chargeable hours")
+              .isEqualByComparingTo(timeRegistration.chargeableHours());
+          assertThat(rs.getString(8)).isEqualTo("!");
+          assertThat(rs.getInt(9)).isEqualTo(0);
+          assertThat(rs.getDouble(10)).isEqualTo(0.00);
+          assertThat(rs.getLong(11)).isEqualTo(timeRegistration.caseId());
+          assertThat(rs.getString(12)).isEqualTo(timeRegistration.comment());
+          assertThat(rs.getString(13)).isEqualTo(timeRegistration.comment());
+          assertThat(rs.getString(14)).isEqualTo(timeRegistration.recordalDate());
+          assertThat(rs.getString(15)).isEqualTo(timeRegistration.recordalDate());
+
+          return Void.TYPE;
+        });
   }
 
   private void saveCase(Case patCase) {
