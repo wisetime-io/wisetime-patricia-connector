@@ -79,6 +79,7 @@ class PatriciaDaoTest {
     Query query = fluentJdbc.query();
     query.update("DELETE FROM vw_case_number").run();
     query.update("DELETE FROM pat_case").run();
+    query.update("DELETE FROM person").run();
   }
 
   @Test
@@ -102,6 +103,23 @@ class PatriciaDaoTest {
         .containsExactlyElementsOf(savedCases.subList(25, 30));
     assertThat(patriciaDao.findCasesOrderById(101, 5))
         .as("No Jira issue should be returned when no issue matches the start ID")
+        .isEmpty();
+  }
+
+  @Test
+  void findLoginByEmail() {
+    fluentJdbc.query().update("INSERT INTO person (login_id, email) VALUES (?, ?)")
+        .params("foobar", "foobar@baz.com")
+        .run();
+
+    assertThat(patriciaDao.findLoginByEmail("foobar@baz.com").get())
+        .as("Username should be returned if it exists in DB.")
+        .isEqualTo("foobar");
+    assertThat(patriciaDao.findLoginByEmail("Foobar@baz.com").get())
+        .as("Email should not be case sensitive")
+        .isEqualTo("foobar");
+    assertThat(patriciaDao.findLoginByEmail("foo.bar@baz.com"))
+        .as("Should return empty if email is not found in DB")
         .isEmpty();
   }
 

@@ -9,6 +9,7 @@ import com.google.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
+import org.codejargon.fluentjdbc.api.mapper.Mappers;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,12 +66,9 @@ public class PatriciaDao {
   }
 
   Optional<String> findLoginByEmail(final String email) {
-    // TODO: Implement
-    return Optional.empty();
-  }
-
-  public void updateBudgetHeader(final long caseId) {
-    // TODO: Implement
+    return fluentJdbc.query().select("SELECT login_id FROM person WHERE LOWER(email) = ?")
+        .params(email.toLowerCase())
+        .firstResult(Mappers.singleString());
   }
 
   public Optional<String> findCurrency(final long caseId) {
@@ -87,14 +85,13 @@ public class PatriciaDao {
     return Collections.emptyList();
   }
 
-  public Optional<Case> findCaseById(final long caseId) {
+  public Optional<Case> findCaseByTagName(final String tagName) {
     // TODO: Implement
     return Optional.empty();
   }
 
-  public Optional<Case> findCaseByTagName(final String tagName) {
+  public void updateBudgetHeader(final long caseId) {
     // TODO: Implement
-    return Optional.empty();
   }
 
   public void addTimeRegistration(TimeRegistration timeRegistration) {
