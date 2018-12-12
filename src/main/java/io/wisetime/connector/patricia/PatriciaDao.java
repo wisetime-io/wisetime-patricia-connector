@@ -79,9 +79,34 @@ public class PatriciaDao {
         .firstResult(Mappers.singleString());
   }
 
-  public Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
-    // TODO: Implement
-    return Optional.empty();
+  Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
+    Optional<BigDecimal> hourlyRate = fluentJdbc.query().select(
+        "  SELECT CASE WHEN EXISTS (" +
+            "      SELECT pat_person_hourly_rate_id" +
+             "      FROM pat_person_hourly_rate pphr" +
+             "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id)" +
+             "  THEN (" +
+             "    SELECT pphr.hourly_rate" +
+             "    FROM pat_person_hourly_rate pphr" +
+             "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id)" +
+             "  ELSE (" +
+             "    SELECT person.hourly_rate" +
+             "    FROM person" +
+             "    WHERE person.login_id = :login_id)" +
+             "  END"
+    )
+        .namedParam("login_id", loginId)
+        .namedParam("wc_id", workCodeId)
+        .firstResult(rs ->
+            rs.getBigDecimal(1) != null ? rs.getBigDecimal(1) : BigDecimal.ZERO
+        );
+
+    if (hourlyRate.isPresent() && hourlyRate.get().compareTo(BigDecimal.ZERO) > 0) {
+      return hourlyRate;
+    } else {
+      // unit price = 0 means there is no unit price retrieved in DB
+      return Optional.empty();
+    }
   }
 
   public List<Discount> findDiscounts(final String workCodeId, final long caseId) {

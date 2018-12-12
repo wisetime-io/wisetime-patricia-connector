@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -82,6 +83,7 @@ class PatriciaDaoTest {
     query.update("DELETE FROM person").run();
     query.update("DELETE FROM casting").run();
     query.update("DELETE FROM pat_names").run();
+    query.update("DELETE FROM pat_person_hourly_rate").run();
   }
 
   @Test
@@ -110,9 +112,7 @@ class PatriciaDaoTest {
 
   @Test
   void findLoginByEmail() {
-    fluentJdbc.query().update("INSERT INTO person (login_id, email) VALUES (?, ?)")
-        .params("foobar", "foobar@baz.com")
-        .run();
+    savePerson("foobar", "foobar@baz.com", FAKER.number().randomNumber());
 
     assertThat(patriciaDao.findLoginByEmail("foobar@baz.com"))
         .as("Username should be returned if it exists in DB.")
@@ -148,6 +148,28 @@ class PatriciaDaoTest {
         .isEmpty();
   }
 
+  @Test
+  void findUserHourlyRate() {
+    double personGeneralHourlyRate = FAKER.number().randomDigit();
+    double personHourlyRateForWorkCode = personGeneralHourlyRate + 10;
+
+    savePerson("username1", "username1@email.com", personGeneralHourlyRate);
+    savePerson("username2", "username2@email.com", personGeneralHourlyRate);
+    savePersonWorkCodeRate("username1", "workCode", personHourlyRateForWorkCode);
+
+    assertThat(patriciaDao.findUserHourlyRate("workCode", "username1").get())
+        .as("should get the user's hourly rate for workcode if set")
+        .isEqualByComparingTo(BigDecimal.valueOf(personHourlyRateForWorkCode));
+
+    assertThat(patriciaDao.findUserHourlyRate("workCode", "username2").get())
+        .as("should get the user's general hourly rate if no rate set fpr work code")
+        .isEqualByComparingTo(BigDecimal.valueOf(personGeneralHourlyRate));
+
+    assertThat(patriciaDao.findUserHourlyRate("workCode", "username3"))
+        .as("should not retrieve any hourly rate if none is set")
+        .isEmpty();
+  }
+
   private void saveCase(Case patCase) {
     fluentJdbc.query()
         .update("INSERT INTO vw_case_number (case_id, case_number) VALUES (?, ?)")
@@ -158,6 +180,20 @@ class PatriciaDaoTest {
         .update("INSERT INTO pat_case (case_id, case_catch_word, state_id, application_type_id, case_type_id) " +
             "VALUES (?, ?, ?, ?, ?)")
         .params(patCase.caseId(), patCase.caseCatchWord(), patCase.stateId(), patCase.appId(), patCase.caseTypeId())
+        .run();
+  }
+
+  private void savePerson(String loginId, String email, double hourlyRate) {
+    fluentJdbc.query().update("INSERT INTO person (login_id, email, hourly_rate) VALUES (?, ?, ?)")
+        .params(loginId, email, hourlyRate)
+        .run();
+  }
+
+  private void savePersonWorkCodeRate(String loginId, String workCode, double hourlyRate) {
+    fluentJdbc.query().update(
+        "INSERT INTO pat_person_hourly_rate (pat_person_hourly_rate_id, login_id, work_code_id, hourly_rate) " +
+        " VALUES (?, ?, ?, ?)")
+        .params(FAKER.number().randomDigit(), loginId, workCode, hourlyRate)
         .run();
   }
 
