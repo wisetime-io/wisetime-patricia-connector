@@ -16,7 +16,6 @@ import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.User;
 
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
-import static io.wisetime.connector.patricia.PatriciaDao.PostTimeData;
 
 /**
  * @author vadym
@@ -26,24 +25,17 @@ public class RandomDataGenerator {
   private static final Faker FAKER = new Faker();
 
   public Case randomCase() {
-    return ImmutableCase.builder()
-        .id(FAKER.number().numberBetween(1, 10000))
-        .caseCatchWord(FAKER.lorem().word())
-        .caseNumber(FAKER.crypto().md5())
-        .appId(FAKER.number().numberBetween(1, 10000))
-        .caseTypeId(FAKER.number().numberBetween(1, 10000))
-        .stateId(FAKER.crypto().md5())
-        .build();
+    return randomCase(FAKER.crypto().md5());
   }
 
-  public PostTimeData randomPostTimeCommonParams() {
-    return ImmutablePostTimeData.builder()
-        .caseName(FAKER.name().name())
-        .recordalDate(FAKER.date().birthday().toString())
-        .workCodeId(FAKER.numerify("workCode######"))
-        .loginId(FAKER.numerify("login######"))
-        .experienceWeightingPercent(FAKER.number().numberBetween(0, 100))
-        .caseId(FAKER.number().numberBetween(1, 10000))
+  public Case randomCase(String caseNumber) {
+    return ImmutableCase.builder()
+        .caseId(FAKER.number().numberBetween(1, 10_000))
+        .caseCatchWord(FAKER.lorem().word())
+        .caseNumber(caseNumber)
+        .appId(FAKER.number().numberBetween(1, 10_000))
+        .caseTypeId(FAKER.number().numberBetween(1, 10_000))
+        .stateId(FAKER.crypto().md5())
         .build();
   }
 
@@ -53,7 +45,7 @@ public class RandomDataGenerator {
     timeGroup.setTags(randomTagList());
     timeGroup.setTimeRows(randomTimeRowList());
     timeGroup.setUser(randomUser());
-    timeGroup.setTotalDurationSecs(FAKER.random().nextInt(0, 10000));
+    timeGroup.setTotalDurationSecs(FAKER.random().nextInt(0, 10_000));
     timeGroup.setDurationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS);
     return timeGroup;
   }

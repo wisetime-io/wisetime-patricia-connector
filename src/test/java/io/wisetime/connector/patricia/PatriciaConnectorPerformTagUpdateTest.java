@@ -121,6 +121,6 @@ class PatriciaConnectorPerformTagUpdateTest {
         .as("We should create tags for both new cases found, with the configured tag upsert path");
 
     verify(connectorStore, times(1))
-        .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.getId());
+        .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.caseId());
   }
 }
