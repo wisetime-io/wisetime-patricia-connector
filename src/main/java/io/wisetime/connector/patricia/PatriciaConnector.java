@@ -69,7 +69,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   @Override
   public void init(final ConnectorModule connectorModule) {
-    Preconditions.checkArgument(patriciaDao.isHealthy(),
+    Preconditions.checkArgument(patriciaDao.canQueryDbDate(),
         "Patricia Database connection is not healthy");
     initializeModifiers();
     initializeRoleTypeId();
@@ -116,7 +116,7 @@ public class PatriciaConnector implements WiseTimeConnector {
    */
   @Override
   public boolean isConnectorHealthy() {
-    return patriciaDao.isHealthy();
+    return patriciaDao.canQueryDbDate();
   }
 
   /**

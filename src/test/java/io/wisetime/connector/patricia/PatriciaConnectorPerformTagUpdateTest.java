@@ -64,7 +64,7 @@ class PatriciaConnectorPerformTagUpdateTest {
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDao).isHealthy();
+    doReturn(true).when(patriciaDao).canQueryDbDate();
 
     connector.init(new ConnectorModule(apiClient, mock(TemplateFormatter.class), connectorStore));
   }

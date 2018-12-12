@@ -101,6 +101,13 @@ class PatriciaDaoTest {
   }
 
   @Test
+  void canQueryDbDate() {
+    assertThat(patriciaDao.canQueryDbDate())
+        .as("should return true if connected to a database")
+        .isTrue();
+  }
+
+  @Test
   void findIssuesOrderedById() {
     final List<Case> cases = RANDOM_DATA_GENERATOR.randomCase(100);
 

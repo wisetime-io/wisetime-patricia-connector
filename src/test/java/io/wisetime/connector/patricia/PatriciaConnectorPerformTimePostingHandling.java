@@ -85,7 +85,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDao).isHealthy();
+    doReturn(true).when(patriciaDao).canQueryDbDate();
 
     connector.init(new ConnectorModule(apiClient, templateFormatter, connectorStore));
   }

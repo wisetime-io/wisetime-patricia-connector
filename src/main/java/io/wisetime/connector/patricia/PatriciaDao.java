@@ -47,7 +47,7 @@ public class PatriciaDao {
     fluentJdbc.query().transaction().inNoResult(runnable);
   }
 
-  boolean isHealthy() {
+  boolean canQueryDbDate() {
     return getDbDate().isPresent();
   }
 
