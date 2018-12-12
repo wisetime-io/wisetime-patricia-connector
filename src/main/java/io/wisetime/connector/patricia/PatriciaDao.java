@@ -4,13 +4,17 @@
 
 package io.wisetime.connector.patricia;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
 import org.codejargon.fluentjdbc.api.mapper.Mappers;
+import org.codejargon.fluentjdbc.api.query.Query;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,13 +24,20 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 import javax.sql.DataSource;
 
 import io.wisetime.generated.connect.UpsertTagRequest;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Simple, unsophisticated access to the Patricia database.
@@ -44,7 +55,80 @@ public class PatriciaDao {
   }
 
   void asTransaction(final Runnable runnable) {
-    fluentJdbc.query().transaction().inNoResult(runnable);
+    query().transaction().inNoResult(runnable);
+  }
+
+  boolean hasExpectedSchema() {
+    final Query query = query();
+
+    final Map<String, Set<String>> requiredTablesAndColumnsMap = Maps.newHashMap();
+    requiredTablesAndColumnsMap.put(
+        "vw_case_number",
+        ImmutableSet.of("case_id", "case_number")
+    );
+    requiredTablesAndColumnsMap.put(
+        "pat_case",
+        ImmutableSet.of("case_id", "case_catch_word", "state_id", "application_type_id", "case_type_id")
+    );
+    requiredTablesAndColumnsMap.put(
+        "person",
+        ImmutableSet.of("login_id", "email", "hourly_rate")
+    );
+    requiredTablesAndColumnsMap.put(
+        "casting",
+        ImmutableSet.of("role_type_id", "actor_id", "case_id", "case_role_sequence")
+    );
+    requiredTablesAndColumnsMap.put(
+        "pat_names",
+        ImmutableSet.of("name_id", "currency_id")
+    );
+    requiredTablesAndColumnsMap.put(
+        "pat_person_hourly_rate",
+        ImmutableSet.of("pat_person_hourly_rate_id", "login_id", "work_code_id", "hourly_rate")
+    );
+    requiredTablesAndColumnsMap.put(
+        "pat_work_code_discount_header",
+        ImmutableSet.of("discount_id", "actor_id", "case_type_id", "state_id", "application_type_id", "work_code_type",
+            "work_code_id", "discount_type"
+        )
+    );
+    requiredTablesAndColumnsMap.put(
+        "pat_work_code_discount_detail",
+        ImmutableSet.of("discount_id", "amount", "discount_pct")
+    );
+    requiredTablesAndColumnsMap.put(
+        "budget_header",
+        ImmutableSet.of("case_id", "budget_edit_date")
+    );
+    requiredTablesAndColumnsMap.put(
+        "time_registration",
+        ImmutableSet.of("work_code_id", "case_id", "registration_date_time", "login_id", "calendar_date", "worked_time",
+            "debited_time", "time_transferred", "number_of_words", "worked_amount", "b_l_case_id", "time_comment_invoice",
+            "time_comment", "time_reg_booked_date", "earliest_invoice_date"
+        )
+    );
+    requiredTablesAndColumnsMap.put(
+        "budget_line",
+        ImmutableSet.of("b_l_seq_number", "work_code_id", "b_l_quantity", "b_l_org_quantity", "b_l_unit_price",
+            "b_l_org_unit_price", "b_l_unit_price_no_discount", "deb_handlagg", "b_l_amount", "b_l_org_amount", "case_id",
+            "show_time_comment", "registered_by", "earliest_inv_date", "b_l_comment", "recorded_date", "discount_prec",
+            "discount_amount", "currency_id", "exchange_rate"
+        )
+    );
+
+    final Map<String, List<String>> actualTablesAndColumnsMap = query.databaseInspection()
+        .selectFromMetaData(meta -> meta.getColumns(null, null, null, null))
+        .listResult(rs -> ImmutablePair.of(rs.getString("TABLE_NAME"), rs.getString("COLUMN_NAME")))
+        .stream()
+        .filter(pair -> requiredTablesAndColumnsMap.containsKey(pair.getKey().toLowerCase()))
+        .collect(groupingBy(ImmutablePair::getKey, mapping(ImmutablePair::getValue, toList())));
+
+    return requiredTablesAndColumnsMap.entrySet().stream()
+        // Values from MetaDataResultSet are in uppercase
+        .allMatch(entry -> actualTablesAndColumnsMap.containsKey(entry.getKey().toUpperCase()) &&
+            actualTablesAndColumnsMap.get(entry.getKey().toUpperCase()).containsAll(
+                entry.getValue().stream().map(String::toUpperCase).collect(Collectors.toSet()))
+        );
   }
 
   boolean canQueryDbDate() {
@@ -52,7 +136,7 @@ public class PatriciaDao {
   }
 
   List<Case> findCasesOrderById(final long startIdExclusive, final int maxResults) {
-    return fluentJdbc.query().select("SELECT TOP ? vcn.case_id, vcn.case_number, pc.case_catch_word, " +
+    return query().select("SELECT TOP ? vcn.case_id, vcn.case_number, pc.case_catch_word, " +
         " pc.case_type_id, pc.state_id, pc.application_type_id " +
         " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
         " WHERE vcn.case_id > ? ORDER BY vcn.case_id ASC")
@@ -61,13 +145,13 @@ public class PatriciaDao {
   }
 
   Optional<String> findLoginByEmail(final String email) {
-    return fluentJdbc.query().select("SELECT login_id FROM person WHERE LOWER(email) = ?")
+    return query().select("SELECT login_id FROM person WHERE LOWER(email) = ?")
         .params(email.toLowerCase())
         .firstResult(Mappers.singleString());
   }
 
   Optional<String> findCurrency(final long caseId, final int roleTypeId) {
-    return fluentJdbc.query().select(
+    return query().select(
         "SELECT currency_id FROM pat_names WHERE name_id = " +
             "(SELECT DISTINCT actor_id FROM casting WHERE case_id = ? AND role_type_id = ? AND case_role_sequence = 1)")
         .params(caseId, roleTypeId)
@@ -75,7 +159,7 @@ public class PatriciaDao {
   }
 
   Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
-    Optional<BigDecimal> hourlyRate = fluentJdbc.query().select(
+    Optional<BigDecimal> hourlyRate = query().select(
         "  SELECT CASE WHEN EXISTS (" +
              "    SELECT pat_person_hourly_rate_id" +
              "    FROM pat_person_hourly_rate pphr" +
@@ -105,7 +189,7 @@ public class PatriciaDao {
   }
 
   List<Discount> findDiscounts(final String workCodeId, final int roleTypeId, final long caseId) {
-    return fluentJdbc.query().select(
+    return query().select(
         "SELECT "
             + "wcdh.discount_id, "
             + "wcdh.case_type_id, "
@@ -130,7 +214,7 @@ public class PatriciaDao {
   }
 
   Optional<Case> findCaseByTagName(final String tagName) {
-    return fluentJdbc.query().select("SELECT vcn.case_id, vcn.case_number, pc.case_catch_word, " +
+    return query().select("SELECT vcn.case_id, vcn.case_number, pc.case_catch_word, " +
         " pc.case_type_id, pc.state_id, pc.application_type_id " +
         " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
         " WHERE vcn.case_number = ?")
@@ -140,23 +224,23 @@ public class PatriciaDao {
 
   void updateBudgetHeader(final long caseId, final String recordalDate) {
     final boolean budgetHeaderExist =
-        fluentJdbc.query().select("SELECT COUNT(*) FROM budget_header WHERE case_id = ?")
+        query().select("SELECT COUNT(*) FROM budget_header WHERE case_id = ?")
             .params(caseId)
             .singleResult(Mappers.singleLong()) > 0;
 
     if (budgetHeaderExist) {
-      fluentJdbc.query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
+      query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
           .params(recordalDate, caseId)
           .run();
     } else {
-      fluentJdbc.query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
+      query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
           .params(caseId, recordalDate)
           .run();
     }
   }
 
   void addTimeRegistration(TimeRegistration timeRegistration) {
-    fluentJdbc.query().update(
+    query().update(
         "INSERT INTO time_registration ("
             + "  work_code_id,"
             + "  case_id,"
@@ -197,7 +281,7 @@ public class PatriciaDao {
   }
 
   void addBudgetLine(BudgetLine budgetLine) {
-    fluentJdbc.query().update(
+    query().update(
         "INSERT INTO budget_line ("
             + "  b_l_seq_number,"
             + "  work_code_id,"
@@ -219,7 +303,7 @@ public class PatriciaDao {
             + "  discount_amount,"
             + "  currency_id,"
             + "  exchange_rate"
-            + ")"
+            + ") "
             + "VALUES ("
             + "  :bsn, :wc, :dt, :wt, :upd, :upd, :up, :li, :ttlblamt, :ttlbloamt, :cid, "
             + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er"
@@ -247,11 +331,11 @@ public class PatriciaDao {
   }
 
   Optional<String> getDbDate() {
-    return fluentJdbc.query().select("SELECT getdate()").firstResult(Mappers.singleString());
+    return query().select("SELECT getdate()").firstResult(Mappers.singleString());
   }
 
   int findNextBudgetLineSeqNum(long caseId) {
-    return fluentJdbc.query()
+    return query()
         .select("SELECT MAX(b_l_seq_number)+1 FROM budget_line bl WHERE bl.case_id = ?")
         .params(caseId)
         .firstResult(rs -> NumberUtils.toInt(rs.getString(1), 1))
@@ -311,6 +395,10 @@ public class PatriciaDao {
         StringUtils.isNotBlank(workCodeId),
         workCodeType
     );
+  }
+
+  private Query query() {
+    return fluentJdbc.query();
   }
 
   /**

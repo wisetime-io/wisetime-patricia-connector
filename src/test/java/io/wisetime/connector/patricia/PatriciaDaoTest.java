@@ -101,6 +101,24 @@ class PatriciaDaoTest {
   }
 
   @Test
+  void hasExpectedSchema() {
+    assertThat(patriciaDao.hasExpectedSchema())
+        .as("Flyway should freshly applied the expected Patricia DB schema")
+        .isTrue();
+
+    Query query = fluentJdbc.query();
+    query.update("ALTER TABLE vw_case_number DROP case_number").run();
+    assertThat(patriciaDao.hasExpectedSchema())
+        .as("A missing column should be detected")
+        .isFalse();
+
+    query.update("ALTER TABLE vw_case_number ADD COLUMN case_number varchar(40) NOT NULL").run();
+    assertThat(patriciaDao.hasExpectedSchema())
+        .as("The missing column has been added")
+        .isTrue();
+  }
+
+  @Test
   void canQueryDbDate() {
     assertThat(patriciaDao.canQueryDbDate())
         .as("should return true if connected to a database")
@@ -307,7 +325,7 @@ class PatriciaDaoTest {
     final long caseId = FAKER.number().randomDigitNotZero();
     final BudgetLine budgetLine = ImmutableBudgetLine.builder()
         .caseId(caseId)
-        .workCodeId(FAKER.lorem().word())
+        .workCodeId(FAKER.lorem().characters(1, 10))
         .userId(FAKER.name().name())
         .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .currency(FAKER.currency().code())
@@ -319,7 +337,7 @@ class PatriciaDaoTest {
         .chargeableAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .discountPercentage(BigDecimal.valueOf(FAKER.number().numberBetween(10, 100)))
         .discountAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
-        .comment(FAKER.lorem().sentence())
+        .comment(FAKER.lorem().sentence(5))
         .build();
 
     patriciaDao.addBudgetLine(budgetLine);

@@ -69,8 +69,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   @Override
   public void init(final ConnectorModule connectorModule) {
-    Preconditions.checkArgument(patriciaDao.canQueryDbDate(),
-        "Patricia Database connection is not healthy");
+    Preconditions.checkArgument(patriciaDao.hasExpectedSchema(),
+        "Patricia Database schema is unsupported by this connector");
     initializeModifiers();
     initializeRoleTypeId();
 
