@@ -171,13 +171,17 @@ public class PatriciaConnector implements WiseTimeConnector {
           .withMessage("Cannot post time group with no time rows");
     }
 
+    final Optional<String> workCode = getTimeGroupWorkCode(userPostedTime.getTimeRows());
+    if (!workCode.isPresent()) {
+      return PostResult.PERMANENT_FAILURE
+          .withMessage("Time group contains invalid modifier.");
+    }
+
     final Optional<String> user = patriciaDao.findLoginByEmail(userPostedTime.getUser().getExternalId());
     if (!user.isPresent()) {
       return PostResult.PERMANENT_FAILURE
           .withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
-
-    final String workCode = getTimeGroupWorkCode(userPostedTime.getTimeRows());
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
       final Optional<Case> issue = patriciaDao.findCaseByTagName(tag.getName());
@@ -187,7 +191,7 @@ public class PatriciaConnector implements WiseTimeConnector {
       return issue;
     };
 
-    final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode, user.get());
+    final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
     if (!hourlyRate.isPresent()) {
       return PostResult.PERMANENT_FAILURE
           .withMessage("No hourly rate is found for " + user.get());
@@ -204,7 +208,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
             .patriciaCase(patriciaCase)
-            .workCode(workCode)
+            .workCode(workCode.get())
             .userId(user.get())
             .timeRegComment(comment)
             .chargeComment(comment) // TODO (AL) implement internal & public template logic
@@ -235,7 +239,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     return PostResult.SUCCESS;
   }
 
-  private String getTimeGroupWorkCode(final List<TimeRow> timeRows) {
+  private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {
     final List<String> workCodes = timeRows.stream()
         .map(TimeRow::getModifier)
         .map(modifier -> StringUtils.defaultIfEmpty(modifier, defaultModifier))
@@ -243,10 +247,13 @@ public class PatriciaConnector implements WiseTimeConnector {
         .map(modifierWorkCodeMap::get)
         .collect(Collectors.toList());
     if (workCodes.size() != 1) {
-      throw new IllegalStateException("All time logs within time group should have same modifier, but got:"
-          + timeRows.stream().map(TimeRow::getModifier).distinct().collect(Collectors.toList()));
+      log.error(
+          "All time logs within time group should have same modifier, but got: {}",
+          timeRows.stream().map(TimeRow::getModifier).distinct().collect(Collectors.toList())
+      );
+      return Optional.empty();
     }
-    return workCodes.get(0);
+    return Optional.of(workCodes.get(0));
   }
 
   private Optional<String> callerKey() {

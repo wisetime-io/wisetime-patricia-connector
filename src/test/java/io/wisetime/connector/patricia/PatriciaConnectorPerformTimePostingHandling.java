@@ -172,7 +172,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_unable_to_get_date_from_db() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().activityHour(2018110110);
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -199,7 +199,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_unable_to_get_currency() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().activityHour(2018110110);
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -222,6 +222,29 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("unable to find currency for the case")
         .isEqualTo(PostResult.TRANSIENT_FAILURE);
+
+    verifyPatriciaNotUpdated();
+  }
+
+  @Test
+  void postTime_multiple_modifier() {
+    final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("defaultModifier").activityHour(2018110110);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("modifier2").activityHour(2018110110);
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(tag))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .totalDurationSecs(1500);
+
+    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup))
+        .as("Time group contains invalid modifier.")
+        .isEqualTo(PostResult.PERMANENT_FAILURE);
 
     verifyPatriciaNotUpdated();
   }
