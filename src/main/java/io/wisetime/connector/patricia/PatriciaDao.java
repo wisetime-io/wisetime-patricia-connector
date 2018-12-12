@@ -71,8 +71,12 @@ public class PatriciaDao {
         .firstResult(Mappers.singleString());
   }
 
-  public Optional<String> findCurrency(final long caseId) {
-    return Optional.empty();
+  Optional<String> findCurrency(final long caseId, final int roleTypeId) {
+    return fluentJdbc.query().select(
+        "SELECT currency_id FROM pat_names WHERE name_id = " +
+            "(SELECT DISTINCT actor_id FROM casting WHERE case_id = ? AND role_type_id = ? AND case_role_sequence = 1)")
+        .params(caseId, roleTypeId)
+        .firstResult(Mappers.singleString());
   }
 
   public Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {

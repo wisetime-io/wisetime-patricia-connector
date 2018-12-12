@@ -62,6 +62,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
+  private int roleTypeId;
 
   @Inject
   private PatriciaDao patriciaDao;
@@ -71,6 +72,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     Preconditions.checkArgument(patriciaDao.isHealthy(),
         "Patricia Database connection is not healthy");
     initializeModifiers();
+    initializeRoleTypeId();
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
@@ -102,6 +104,11 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
         "Patricia modifiers mapping should include work code for default modifier");
+  }
+
+  private void initializeRoleTypeId() {
+    this.roleTypeId = RuntimeConfig.getInt(PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID)
+        .orElseThrow(() -> new IllegalStateException("Required configuration PATRICIA_ROLE_TYPE_ID is not set"));
   }
 
   /**
@@ -277,7 +284,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     final String dbDate = patriciaDao.getDbDate()
         .orElseThrow(() -> new RuntimeException("Failed to get current database date"));
 
-    final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId())
+    final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
         .orElseThrow(() -> new RuntimeException(
             "Could not find external system currency for case " + params.patriciaCase().caseNumber())
         );

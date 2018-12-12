@@ -80,6 +80,8 @@ class PatriciaDaoTest {
     query.update("DELETE FROM vw_case_number").run();
     query.update("DELETE FROM pat_case").run();
     query.update("DELETE FROM person").run();
+    query.update("DELETE FROM casting").run();
+    query.update("DELETE FROM pat_names").run();
   }
 
   @Test
@@ -112,14 +114,37 @@ class PatriciaDaoTest {
         .params("foobar", "foobar@baz.com")
         .run();
 
-    assertThat(patriciaDao.findLoginByEmail("foobar@baz.com").get())
+    assertThat(patriciaDao.findLoginByEmail("foobar@baz.com"))
         .as("Username should be returned if it exists in DB.")
-        .isEqualTo("foobar");
-    assertThat(patriciaDao.findLoginByEmail("Foobar@baz.com").get())
+        .contains("foobar");
+    assertThat(patriciaDao.findLoginByEmail("Foobar@baz.com"))
         .as("Email should not be case sensitive")
-        .isEqualTo("foobar");
+        .contains("foobar");
     assertThat(patriciaDao.findLoginByEmail("foo.bar@baz.com"))
         .as("Should return empty if email is not found in DB")
+        .isEmpty();
+  }
+
+  @Test
+  void findCurrency() {
+    int caseId = FAKER.number().randomDigit();
+    int roleTypeId = FAKER.number().randomDigit();
+    int actorId = FAKER.number().randomDigit();
+    String currency = FAKER.currency().code();
+
+    fluentJdbc.query().update(
+        "INSERT INTO casting (actor_id, case_id, role_type_id, case_role_sequence) VALUES (?, ?, ?, ?)")
+        .params(actorId, caseId, roleTypeId, 1)
+        .run();
+    fluentJdbc.query().update("INSERT INTO pat_names (name_id, currency_id) VALUES (?, ?)")
+        .params(actorId, currency)
+        .run();
+
+    assertThat(patriciaDao.findCurrency(caseId, roleTypeId))
+        .as("should be able to retrieve currency defined for a case")
+        .contains(currency);
+    assertThat(patriciaDao.findCurrency(FAKER.number().randomDigit(), roleTypeId))
+        .as("no defined currency for that case id")
         .isEmpty();
   }
 

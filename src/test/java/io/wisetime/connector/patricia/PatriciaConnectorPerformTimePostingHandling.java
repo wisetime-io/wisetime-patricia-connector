@@ -40,6 +40,7 @@ import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -75,6 +76,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(
         ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "defaultModifier:DM, modifier2:M2"
     );
+
+    // Set a role type id to use
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
@@ -287,7 +291,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
     when(patriciaDao.getDbDate()).thenReturn(Optional.of(dbDate));
-    when(patriciaDao.findCurrency(anyLong())).thenReturn(Optional.of(currency));
+    when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -375,7 +379,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
     when(patriciaDao.getDbDate()).thenReturn(Optional.of(dbDate));
-    when(patriciaDao.findCurrency(anyLong())).thenReturn(Optional.of(currency));
+    when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
     when(templateFormatter.format(any(TimeGroup.class))).thenReturn("narrative from template");
 
