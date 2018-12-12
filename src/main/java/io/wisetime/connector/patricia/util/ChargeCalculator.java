@@ -6,6 +6,9 @@ package io.wisetime.connector.patricia.util;
 
 import com.google.common.collect.Lists;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Collections;
@@ -22,6 +25,8 @@ import static io.wisetime.connector.patricia.PatriciaDao.Discount;
  * @author alvin.llobrera@practiceinsight.io
  */
 public class ChargeCalculator {
+
+  private static final Logger log = LoggerFactory.getLogger(ChargeCalculator.class);
 
   public static final int DISCOUNT_TYPE_PURE = 1;
   public static final int DISCOUNT_TYPE_MARKUP = 2;
@@ -57,6 +62,8 @@ public class ChargeCalculator {
       } else if (discount.get().discountType() == DISCOUNT_TYPE_MARKUP) {
         // 2 means mark up discount, system should ADD the discount to the billing amount
         return calculateMarkedUpBillingAmount(discount.get(), durationInHours, hourlyRate);
+      } else {
+        throw new RuntimeException("Unknown discount type " + discount.get().discountType());
       }
     }
 

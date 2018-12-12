@@ -93,15 +93,14 @@ class ChargeCalculatorTest {
 
     Discount highestPriority = ImmutableDiscount.builder()
         .priority(10)
-        .stateId(FAKER.crypto().md5())
+        .applicationTypeId(FAKER.number().numberBetween(10, 100))
         .build();
     Discount midPriority1 = ImmutableDiscount.builder()
         .priority(5)
-        .stateId(patriciaCase.stateId()) // matcing state id
+        .stateId(patriciaCase.stateId()) // matching state id
         .build();
-    Discount midPriority2 = ImmutableDiscount.builder()
+    Discount midPriority2 = ImmutableDiscount.builder() // matching discount
         .priority(5)
-        .caseTypeId(patriciaCase.caseTypeId()) // matching case type id
         .build();
     Discount lowestPriority = ImmutableDiscount.builder()
         .priority(1)
@@ -178,6 +177,23 @@ class ChargeCalculatorTest {
     )
         .as("should add markup amount from total charge amount by percentage")
         .isEqualByComparingTo(BigDecimal.valueOf(88));
+  }
+
+  @Test
+  void calculateTotalCharge_unknownDiscountType() {
+    Discount discount = ImmutableDiscount.builder()
+        .priority(10)
+        .stateId(FAKER.crypto().md5())
+        .discountType(100)
+        .discountPercent(BigDecimal.valueOf(10))
+        .build();
+
+    assertThatThrownBy(() ->
+        ChargeCalculator.calculateTotalCharge(Optional.of(discount), BigDecimal.valueOf(8.00), BigDecimal.valueOf(10))
+    )
+        .as("discount type is not supported")
+        .withFailMessage("Unknown discount type 100")
+        .isInstanceOf(RuntimeException.class);
   }
 
   @Test
