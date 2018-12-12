@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -34,6 +35,8 @@ import io.wisetime.connector.config.RuntimeConfig;
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaDbModule;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
+import static io.wisetime.connector.patricia.PatriciaDao.Discount;
+import static io.wisetime.connector.patricia.PatriciaDao.DiscountPriority;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -84,6 +87,7 @@ class PatriciaDaoTest {
     query.update("DELETE FROM casting").run();
     query.update("DELETE FROM pat_names").run();
     query.update("DELETE FROM pat_person_hourly_rate").run();
+    removeAllDiscounts();
   }
 
   @Test
@@ -132,13 +136,10 @@ class PatriciaDaoTest {
     int actorId = FAKER.number().randomDigit();
     String currency = FAKER.currency().code();
 
-    fluentJdbc.query().update(
-        "INSERT INTO casting (actor_id, case_id, role_type_id, case_role_sequence) VALUES (?, ?, ?, ?)")
-        .params(actorId, caseId, roleTypeId, 1)
-        .run();
     fluentJdbc.query().update("INSERT INTO pat_names (name_id, currency_id) VALUES (?, ?)")
         .params(actorId, currency)
         .run();
+    saveCasting(actorId, caseId, roleTypeId);
 
     assertThat(patriciaDao.findCurrency(caseId, roleTypeId))
         .as("should be able to retrieve currency defined for a case")
@@ -170,6 +171,36 @@ class PatriciaDaoTest {
         .isEmpty();
   }
 
+  @Test
+  void findDiscounts() {
+    int caseId = FAKER.number().randomDigit();
+    int roleTypeId = FAKER.number().randomDigit();
+    int actorId = FAKER.number().randomDigit();
+    int discountId = FAKER.number().randomDigit();
+    String workCode = FAKER.lorem().word();
+
+    saveCasting(actorId, caseId, roleTypeId);
+
+    Arrays.stream(DiscountPriority.values())
+        .forEach(discountPriority -> {
+
+          removeAllDiscounts();
+          saveRandomDiscount(discountPriority, discountId, actorId, workCode);
+
+          List<Discount> discounts = patriciaDao.findDiscounts(
+              discountPriority.hasWorkCodeId() ? workCode : null,
+              roleTypeId,
+              caseId
+          );
+
+          assertThat(discounts).hasSize(1);
+          assertThat(discounts.get(0).priority())
+              .as("should be retrieved with correct discount priority")
+              .isEqualTo(discountPriority.getPriorityNum());
+        });
+
+  }
+
   private void saveCase(Case patCase) {
     fluentJdbc.query()
         .update("INSERT INTO vw_case_number (case_id, case_number) VALUES (?, ?)")
@@ -195,6 +226,43 @@ class PatriciaDaoTest {
         " VALUES (?, ?, ?, ?)")
         .params(FAKER.number().randomDigit(), loginId, workCode, hourlyRate)
         .run();
+  }
+
+  private void saveRandomDiscount(DiscountPriority discountPriority,
+                                  int discountId,
+                                  int userId,
+                                  String workCode) {
+    fluentJdbc.query().update("INSERT INTO pat_work_code_discount_header (discount_id, actor_id, case_type_id, " +
+        " state_id, application_type_id, work_code_type, work_code_id, discount_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .params(
+            discountId,
+            userId,
+            discountPriority.hasCaseTypeId() ? FAKER.number().numberBetween(1, 100) : null,
+            discountPriority.hasStateId() ? FAKER.bothify("?#") : null,
+            discountPriority.hasAppTypeId() ? FAKER.number().numberBetween(1, 100) : null,
+            discountPriority.getWorkCodeType(),
+            discountPriority.hasWorkCodeId() ? workCode : null,
+            FAKER.number().numberBetween(1, 2)
+        )
+        .run();
+
+    fluentJdbc.query().update("INSERT INTO pat_work_code_discount_detail (discount_id, amount) " +
+        " VALUES (?, ?)")
+        .params(discountId, FAKER.number().randomDigit())
+        .run();
+
+  }
+
+  private void saveCasting(int actorId, int caseId, int roleTypeId) {
+    fluentJdbc.query().update(
+        "INSERT INTO casting (actor_id, case_id, role_type_id, case_role_sequence) VALUES (?, ?, ?, ?)")
+        .params(actorId, caseId, roleTypeId, 1)
+        .run();
+  }
+
+  private void removeAllDiscounts() {
+    fluentJdbc.query().update("DELETE FROM pat_work_code_discount_header").run();
+    fluentJdbc.query().update("DELETE FROM pat_work_code_discount_detail").run();
   }
 
   public static class FlywayPatriciaTestDbModule extends AbstractModule {

@@ -289,7 +289,9 @@ public class PatriciaConnector implements WiseTimeConnector {
             "Could not find external system currency for case " + params.patriciaCase().caseNumber())
         );
 
-    final List<Discount> discounts = patriciaDao.findDiscounts(params.workCode(), params.patriciaCase().caseId());
+    final List<Discount> discounts = patriciaDao.findDiscounts(
+        params.workCode(), roleTypeId, params.patriciaCase().caseId()
+    );
     final Optional<Discount> discount = ChargeCalculator.getMostApplicableDiscount(discounts, params.patriciaCase());
 
     TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()

@@ -15,8 +15,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.util.Collections;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -82,8 +85,8 @@ public class PatriciaDao {
   Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
     Optional<BigDecimal> hourlyRate = fluentJdbc.query().select(
         "  SELECT CASE WHEN EXISTS (" +
-            "      SELECT pat_person_hourly_rate_id" +
-             "      FROM pat_person_hourly_rate pphr" +
+             "    SELECT pat_person_hourly_rate_id" +
+             "    FROM pat_person_hourly_rate pphr" +
              "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id)" +
              "  THEN (" +
              "    SELECT pphr.hourly_rate" +
@@ -109,9 +112,29 @@ public class PatriciaDao {
     }
   }
 
-  public List<Discount> findDiscounts(final String workCodeId, final long caseId) {
-    // TODO: Implement
-    return Collections.emptyList();
+  public List<Discount> findDiscounts(final String workCodeId, final int roleTypeId, final long caseId) {
+    return fluentJdbc.query().select(
+        "SELECT "
+            + "wcdh.discount_id, "
+            + "wcdh.case_type_id, "
+            + "wcdh.state_id, "
+            + "wcdh.application_type_id, "
+            + "wcdh.work_code_type, "
+            + "wcdh.work_code_id, "
+            + "wcdh.discount_type, "
+            + "wcdd.amount, "
+            + "wcdd.discount_pct "
+            + "FROM pat_work_code_discount_header wcdh "
+            + "JOIN pat_work_code_discount_detail wcdd ON wcdh.discount_id = wcdd.discount_id "
+            + "JOIN casting ON wcdh.actor_id = casting.actor_id "
+            + "WHERE casting.case_id = :case_id "
+            + "AND casting.role_type_id = :role_type_id "
+            + "AND (wcdh.work_code_type IS NULL OR wcdh.work_code_type = 'T') "
+            + "AND (wcdh.work_code_id IS NULL OR wcdh.work_code_id = :work_code_id)")
+        .namedParam("case_id", caseId)
+        .namedParam("role_type_id", roleTypeId)
+        .namedParam("work_code_id", workCodeId)
+        .listResult(this::mapDiscountRecord);  // returns an immutable list
   }
 
   public Optional<Case> findCaseByTagName(final String tagName) {
@@ -134,6 +157,49 @@ public class PatriciaDao {
   public Optional<String> getDbDate() {
     // TODO: Implement
     return Optional.empty();
+  }
+
+  private Discount mapDiscountRecord(ResultSet rset)
+      throws SQLException {
+    final int discountId = rset.getInt(1);
+    final int caseTypeId = rset.getInt(2);
+    final String stateId = rset.getString(3);
+    final int applicationTypeId = rset.getInt(4);
+    final String workCodeType = rset.getString(5);
+    final String workCodeId = rset.getString(6);
+    final int discountType = rset.getInt(7);
+    final BigDecimal amount = rset.getBigDecimal(8);
+    final BigDecimal discountPercent = rset.getBigDecimal(9);
+    final DiscountPriority discountPriority = determineDiscountPriority(
+        caseTypeId, stateId, applicationTypeId, workCodeId, workCodeType
+    );
+
+    return ImmutableDiscount.builder()
+        .discountId(discountId)
+        .caseTypeId(caseTypeId > 0 ? caseTypeId : null)
+        .stateId(stateId)
+        .applicationTypeId(applicationTypeId > 0 ? applicationTypeId : null)
+        .workCodeType(workCodeType)
+        .workCodeId(workCodeId)
+        .amount(amount != null ? amount : BigDecimal.ZERO)
+        .discountPercent(discountPercent != null ? discountPercent : BigDecimal.ZERO)
+        .discountType(discountType)
+        .priority(discountPriority.getPriorityNum())
+        .build();
+  }
+
+  private DiscountPriority determineDiscountPriority(Integer caseTypeId,
+                                                     String stateId,
+                                                     Integer appTypeId,
+                                                     String workCodeId,
+                                                     String workCodeType) {
+    return DiscountPriority.findDiscountPriority(
+        caseTypeId > 0,
+        StringUtils.isNotBlank(stateId),
+        appTypeId > 0,
+        StringUtils.isNotBlank(workCodeId),
+        workCodeType
+    );
   }
 
   /**
@@ -277,5 +343,110 @@ public class PatriciaDao {
     BigDecimal workedHoursWithExpRating();
 
     BigDecimal workedHoursWithoutExpRating();
+  }
+
+  /**
+   * This enums contains matrix to determine discount priority.
+   *
+   * @author alvin.llobrera@practiceinsight.io
+   */
+  public enum DiscountPriority {
+
+    PRIORITY_31(31, true, true, true, true, "T"),
+    PRIORITY_30(30, true, true, true, true, null),
+    PRIORITY_29(29, true, true, true, false, "T"),
+    PRIORITY_28(28, true, true, true, false, null),
+    PRIORITY_27(27, true, true, false, true, "T"),
+    PRIORITY_26(26, true, true, false, true, null),
+    PRIORITY_25(25, true, true, false, false, "T"),
+    PRIORITY_24(24, true, true, false, false, null),
+    PRIORITY_23(23, true, false, true, true, "T"),
+    PRIORITY_22(22, true, false, true, true, null),
+    PRIORITY_21(21, true, false, true, false, "T"),
+    PRIORITY_20(20, true, false, true, false, null),
+    PRIORITY_19(19, true, false, false, true, "T"),
+    PRIORITY_18(18, true, false, false, true, null),
+    PRIORITY_17(17, true, false, false, false, "T"),
+    PRIORITY_16(16, true, false, false, false, null),
+    PRIORITY_15(15, false, true, true, true, "T"),
+    PRIORITY_14(14, false, true, true, true, null),
+    PRIORITY_13(13, false, true, true, false, "T"),
+    PRIORITY_12(12, false, true, true, false, null),
+    PRIORITY_11(11, false, true, false, true, "T"),
+    PRIORITY_10(10, false, true, false, true, null),
+    PRIORITY_9(9, false, true, false, false, "T"),
+    PRIORITY_8(8, false, true, false, false, null),
+    PRIORITY_7(7, false, false, true, true, "T"),
+    PRIORITY_6(6, false, false, true, true, null),
+    PRIORITY_5(5, false, false, true, false, "T"),
+    PRIORITY_4(4, false, false, true, false, null),
+    PRIORITY_3(3, false, false, false, true, "T"),
+    PRIORITY_2(2, false, false, false, true, null),
+    PRIORITY_1(1, false, false, false, false, "T"),
+    PRIORITY_0(0, false, false, false, false, null);
+
+    private int priorityNum;
+    private boolean hasCaseTypeId;
+    private boolean hasStateId;
+    private boolean hasAppTypeId;
+    private boolean hasWorkCodeId;
+    private String workCodeType;
+
+    @SuppressWarnings("all")
+    DiscountPriority(int priorityNum,
+                     boolean hasCaseTypeId,
+                     boolean hasStateId,
+                     boolean hasAppTypeId,
+                     boolean hasWorkCodeId,
+                     String workCodeType) {
+      this.priorityNum = priorityNum;
+      this.hasCaseTypeId = hasCaseTypeId;
+      this.hasStateId = hasStateId;
+      this.hasAppTypeId = hasAppTypeId;
+      this.hasWorkCodeId = hasWorkCodeId;
+      this.workCodeType = workCodeType;
+    }
+
+    public int getPriorityNum() {
+      return priorityNum;
+    }
+
+    public boolean hasCaseTypeId() {
+      return hasCaseTypeId;
+    }
+
+    public boolean hasStateId() {
+      return hasStateId;
+    }
+
+    public boolean hasAppTypeId() {
+      return hasAppTypeId;
+    }
+
+    public boolean hasWorkCodeId() {
+      return hasWorkCodeId;
+    }
+
+    public String getWorkCodeType() {
+      return workCodeType;
+    }
+
+    @SuppressWarnings({"ParameterNumber", "BooleanExpressionComplexity"})
+    public static DiscountPriority findDiscountPriority(boolean hasCaseTypeId,
+                                                        boolean hasStateId,
+                                                        boolean hasAppTypeId,
+                                                        boolean hasWorkCodeId,
+                                                        String workCodeType) {
+      return Arrays.stream(DiscountPriority.values())
+          .filter(discountPriority ->
+              discountPriority.hasCaseTypeId == hasCaseTypeId &&
+                  discountPriority.hasStateId == hasStateId &&
+                  discountPriority.hasAppTypeId == hasAppTypeId &&
+                  discountPriority.hasWorkCodeId == hasWorkCodeId &&
+                  Objects.equals(discountPriority.workCodeType, workCodeType)
+          )
+          .findFirst()
+          .orElse(PRIORITY_0);
+    }
   }
 }
