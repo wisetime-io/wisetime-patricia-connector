@@ -31,8 +31,6 @@ import io.wisetime.generated.connect.UpsertTagRequest;
 public class PatriciaDao {
 
   private final Logger log = LoggerFactory.getLogger(PatriciaDao.class);
-  static final int PURE_DISCOUNT = 1;
-  static final int MARK_UP_DISCOUNT = 2;
   private final FluentJdbc fluentJdbc;
 
   @Inject
@@ -40,7 +38,7 @@ public class PatriciaDao {
     fluentJdbc = new FluentJdbcBuilder().connectionProvider(dataSource).build();
   }
 
-  public void asTransaction(final Runnable runnable) {
+  void asTransaction(final Runnable runnable) {
     fluentJdbc.query().transaction().inNoResult(runnable);
   }
 
@@ -49,8 +47,21 @@ public class PatriciaDao {
   }
 
   List<Case> findCasesOrderById(final long startIdExclusive, final int maxResults) {
-    // TODO: Implement
-    return Collections.emptyList();
+    return fluentJdbc.query().select("SELECT TOP ? vcn.case_id, vcn.case_number, pc.case_catch_word, " +
+        " pc.case_type_id, pc.state_id, pc.application_type_id " +
+        " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
+        " WHERE vcn.case_id > ? ORDER BY vcn.case_id ASC")
+        .params(maxResults, startIdExclusive)
+        .listResult(rs ->
+          ImmutableCase.builder()
+              .caseId(rs.getLong(1))
+              .caseNumber(rs.getString(2))
+              .caseCatchWord(rs.getString(3))
+              .caseTypeId(rs.getInt(4))
+              .stateId(rs.getString(5))
+              .appId(rs.getInt(6))
+              .build()
+        );
   }
 
   Optional<String> findLoginByEmail(final String email) {

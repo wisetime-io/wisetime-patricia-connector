@@ -7,7 +7,9 @@ package io.wisetime.connector.patricia;
 import com.github.javafaker.Faker;
 
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import io.wisetime.generated.connect.Tag;
@@ -35,8 +37,12 @@ public class RandomDataGenerator {
         .caseNumber(caseNumber)
         .appId(FAKER.number().numberBetween(1, 10_000))
         .caseTypeId(FAKER.number().numberBetween(1, 10_000))
-        .stateId(FAKER.crypto().md5())
+        .stateId(FAKER.bothify("?#"))
         .build();
+  }
+
+  public List<Case> randomCase(int count) {
+    return randomEntities(this::randomCase, count, count);
   }
 
   public TimeGroup randomTimeGroup() {
@@ -80,5 +86,12 @@ public class RandomDataGenerator {
     user.setExperienceWeightingPercent(FAKER.number().numberBetween(0, 100));
     user.setEmail(FAKER.internet().emailAddress());
     return user;
+  }
+
+  private <T> List<T> randomEntities(final Supplier<T> supplier, final int min, final int max) {
+    return IntStream
+        .range(0, FAKER.random().nextInt(min, max))
+        .mapToObj(i -> supplier.get())
+        .collect(Collectors.toList());
   }
 }
