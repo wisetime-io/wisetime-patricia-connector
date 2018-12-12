@@ -325,7 +325,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .comment(params.chargeComment())
         .build();
 
-    patriciaDao.updateBudgetHeader(params.patriciaCase().caseId());
+    patriciaDao.updateBudgetHeader(params.patriciaCase().caseId(), dbDate);
     patriciaDao.addTimeRegistration(timeRegistration);
     patriciaDao.addBudgetLine(budgetLine);
 

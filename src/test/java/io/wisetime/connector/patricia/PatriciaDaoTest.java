@@ -15,6 +15,7 @@ import com.github.javafaker.Faker;
 
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
+import org.codejargon.fluentjdbc.api.mapper.Mappers;
 import org.codejargon.fluentjdbc.api.query.Query;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,6 +50,8 @@ class PatriciaDaoTest {
   private static final String TEST_JDBC_URL = "jdbc:h2:mem:test_patricia_db;DB_CLOSE_DELAY=-1";
   private static final RandomDataGenerator RANDOM_DATA_GENERATOR = new RandomDataGenerator();
   private static final Faker FAKER = new Faker();
+  private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
   private static PatriciaDao patriciaDao;
   private static FluentJdbc fluentJdbc;
 
@@ -198,7 +203,36 @@ class PatriciaDaoTest {
               .as("should be retrieved with correct discount priority")
               .isEqualTo(discountPriority.getPriorityNum());
         });
+  }
 
+  @Test
+  void findCaseByTagName() {
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    saveCase(patriciaCase);
+
+    assertThat(patriciaDao.findCaseByTagName(patriciaCase.caseNumber()))
+        .as("Should return Patricia case if it exists in DB")
+        .contains(patriciaCase);
+    assertThat(patriciaDao.findCaseByTagName(patriciaCase.caseNumber() + "123"))
+        .as("Should return empty if case is not in DB")
+        .isEmpty();
+  }
+
+  @Test
+  void updateBudgetHeader() {
+    long caseId = FAKER.number().numberBetween(1, 100);
+    String recordalDate = LocalDateTime.now().format(DATE_TIME_FORMATTER);
+
+    patriciaDao.updateBudgetHeader(caseId, recordalDate);
+    assertThat(getBudgetHeaderEditDate(caseId))
+        .as("should be able to save the budget header record")
+        .isEqualTo(recordalDate);
+
+    String newRecordalDate = LocalDateTime.now().minusDays(1).format(DATE_TIME_FORMATTER);
+    patriciaDao.updateBudgetHeader(caseId, newRecordalDate);
+    assertThat(getBudgetHeaderEditDate(caseId))
+        .as("should be able to update the budget header's record date")
+        .isEqualTo(newRecordalDate);
   }
 
   private void saveCase(Case patCase) {
@@ -258,6 +292,12 @@ class PatriciaDaoTest {
         "INSERT INTO casting (actor_id, case_id, role_type_id, case_role_sequence) VALUES (?, ?, ?, ?)")
         .params(actorId, caseId, roleTypeId, 1)
         .run();
+  }
+
+  private String getBudgetHeaderEditDate(long caseId) {
+    return fluentJdbc.query().select("SELECT budget_edit_date FROM budget_header WHERE case_id = ?")
+        .params(caseId)
+        .singleResult(Mappers.singleString());
   }
 
   private void removeAllDiscounts() {

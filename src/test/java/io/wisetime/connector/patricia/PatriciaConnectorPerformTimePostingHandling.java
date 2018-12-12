@@ -403,7 +403,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   private void verifyPatriciaNotUpdated() {
-    verify(patriciaDao, never()).updateBudgetHeader(anyLong());
+    verify(patriciaDao, never()).updateBudgetHeader(anyLong(), anyString());
     verify(patriciaDao, never()).addTimeRegistration(any());
     verify(patriciaDao, never()).addBudgetLine(any());
   }

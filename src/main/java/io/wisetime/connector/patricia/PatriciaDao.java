@@ -56,16 +56,7 @@ public class PatriciaDao {
         " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
         " WHERE vcn.case_id > ? ORDER BY vcn.case_id ASC")
         .params(maxResults, startIdExclusive)
-        .listResult(rs ->
-          ImmutableCase.builder()
-              .caseId(rs.getLong(1))
-              .caseNumber(rs.getString(2))
-              .caseCatchWord(rs.getString(3))
-              .caseTypeId(rs.getInt(4))
-              .stateId(rs.getString(5))
-              .appId(rs.getInt(6))
-              .build()
-        );
+        .listResult(this::mapToCase);
   }
 
   Optional<String> findLoginByEmail(final String email) {
@@ -112,7 +103,7 @@ public class PatriciaDao {
     }
   }
 
-  public List<Discount> findDiscounts(final String workCodeId, final int roleTypeId, final long caseId) {
+  List<Discount> findDiscounts(final String workCodeId, final int roleTypeId, final long caseId) {
     return fluentJdbc.query().select(
         "SELECT "
             + "wcdh.discount_id, "
@@ -137,13 +128,30 @@ public class PatriciaDao {
         .listResult(this::mapDiscountRecord);  // returns an immutable list
   }
 
-  public Optional<Case> findCaseByTagName(final String tagName) {
-    // TODO: Implement
-    return Optional.empty();
+  Optional<Case> findCaseByTagName(final String tagName) {
+    return fluentJdbc.query().select("SELECT vcn.case_id, vcn.case_number, pc.case_catch_word, " +
+        " pc.case_type_id, pc.state_id, pc.application_type_id " +
+        " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
+        " WHERE vcn.case_number = ?")
+        .params(tagName)
+        .firstResult(this::mapToCase);
   }
 
-  public void updateBudgetHeader(final long caseId) {
-    // TODO: Implement
+  void updateBudgetHeader(final long caseId, final String recordalDate) {
+    final boolean budgetHeaderExist =
+        fluentJdbc.query().select("SELECT COUNT(*) FROM budget_header WHERE case_id = ?")
+            .params(caseId)
+            .singleResult(Mappers.singleLong()) > 0;
+
+    if (budgetHeaderExist) {
+      fluentJdbc.query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
+          .params(recordalDate, caseId)
+          .run();
+    } else {
+      fluentJdbc.query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
+          .params(caseId, recordalDate)
+          .run();
+    }
   }
 
   public void addTimeRegistration(TimeRegistration timeRegistration) {
@@ -154,9 +162,19 @@ public class PatriciaDao {
     // TODO: Implement
   }
 
-  public Optional<String> getDbDate() {
-    // TODO: Implement
-    return Optional.empty();
+  Optional<String> getDbDate() {
+    return fluentJdbc.query().select("SELECT getdate()").firstResult(Mappers.singleString());
+  }
+
+  private ImmutableCase mapToCase(ResultSet rs) throws SQLException {
+    return ImmutableCase.builder()
+        .caseId(rs.getLong(1))
+        .caseNumber(rs.getString(2))
+        .caseCatchWord(rs.getString(3))
+        .caseTypeId(rs.getInt(4))
+        .stateId(rs.getString(5))
+        .appId(rs.getInt(6))
+        .build();
   }
 
   private Discount mapDiscountRecord(ResultSet rset)
