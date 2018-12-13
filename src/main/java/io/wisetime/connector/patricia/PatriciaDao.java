@@ -237,8 +237,12 @@ public class PatriciaDao {
 
     BigDecimal hourlyRate();
 
-    BigDecimal workedHoursWithExpRating();
+    BigDecimal actualHoursNoExpRating();
 
-    BigDecimal workedHoursWithoutExpRating();
+    BigDecimal actualHoursWithExpRating();
+
+    BigDecimal chargeableHoursNoExpRating();
+
+    BigDecimal chargeableHoursWithExpRating();
   }
 }

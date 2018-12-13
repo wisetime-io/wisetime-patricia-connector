@@ -16,6 +16,10 @@ import java.util.Optional;
 
 import io.wisetime.connector.patricia.ImmutableDiscount;
 import io.wisetime.connector.patricia.RandomDataGenerator;
+import io.wisetime.connector.testutils.FakeEntities;
+import io.wisetime.generated.connect.Tag;
+import io.wisetime.generated.connect.TimeGroup;
+import io.wisetime.generated.connect.TimeRow;
 
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
@@ -28,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ChargeCalculatorTest {
 
   private static final RandomDataGenerator GENERATOR = new RandomDataGenerator();
+  private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
   private static final Faker FAKER = new Faker();
 
   @Test
@@ -226,9 +231,27 @@ class ChargeCalculatorTest {
   }
 
   @Test
-  void calculateDurationToHours() {
-    assertThat(ChargeCalculator.calculateDurationToHours(9000))
-        .as("duration secs / 3600")
-        .isEqualByComparingTo(BigDecimal.valueOf(2.5));
+  void calculateActualWorkedHours() {
+    TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().durationSecs(800);
+    TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().durationSecs(200);
+
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
+    timeGroup.setTags(ImmutableList.of(FAKE_ENTITIES.randomTag(), FAKE_ENTITIES.randomTag()));
+    timeGroup.setTimeRows(ImmutableList.of(timeRow1, timeRow2));
+    timeGroup.setTotalDurationSecs(1500);
+    timeGroup.setDurationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS);
+    timeGroup.getUser().experienceWeightingPercent(50);
+
+    assertThat(ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(timeGroup))
+        .isEqualByComparingTo(BigDecimal.valueOf(0.14)); // 500 secs
+
+    assertThat(ChargeCalculator.calculateActualWorkedHoursWithExpRatingPerCase(timeGroup))
+        .isEqualByComparingTo(BigDecimal.valueOf(0.07)); // 250 secs
+
+    assertThat(ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(timeGroup))
+        .isEqualByComparingTo(BigDecimal.valueOf(0.21)); // 750 secs
+
+    assertThat(ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(timeGroup))
+        .isEqualByComparingTo(BigDecimal.valueOf(0.10)); // 375 secs
   }
 }

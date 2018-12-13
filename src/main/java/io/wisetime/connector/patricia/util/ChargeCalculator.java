@@ -18,6 +18,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import io.wisetime.connector.utils.DurationCalculator;
+import io.wisetime.connector.utils.DurationSource;
+import io.wisetime.generated.connect.TimeGroup;
+
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 
@@ -86,7 +90,49 @@ public class ChargeCalculator {
     return totalCharge.divide(durationInHours, 2, RoundingMode.HALF_UP);
   }
 
-  public static BigDecimal calculateDurationToHours(double durationSecs) {
+  public static BigDecimal calculateActualWorkedHoursNoExpRatingPerCase(TimeGroup userPostedTime) {
+    return toHours(
+        DurationCalculator
+            .of(userPostedTime)
+            .useDurationFrom(DurationSource.SUM_TIME_ROWS)
+            .disregardExperienceRating()
+            .calculate()
+            .getPerTagDuration()
+    );
+  }
+
+  public static BigDecimal calculateActualWorkedHoursWithExpRatingPerCase(TimeGroup userPostedTime) {
+    return toHours(
+        DurationCalculator
+            .of(userPostedTime)
+            .useDurationFrom(DurationSource.SUM_TIME_ROWS)
+            .calculate()
+            .getPerTagDuration()
+    );
+  }
+
+  public static BigDecimal calculateChargeableWorkedHoursNoExpRatingPerCase(TimeGroup userPostedTime) {
+    return toHours(
+        DurationCalculator
+            .of(userPostedTime)
+            .useDurationFrom(DurationSource.TIME_GROUP)
+            .disregardExperienceRating()
+            .calculate()
+            .getPerTagDuration()
+    );
+  }
+
+  public static BigDecimal calculateChargeableWorkedHoursWithExpRatingPerCase(TimeGroup userPostedTime) {
+    return toHours(
+        DurationCalculator
+            .of(userPostedTime)
+            .useDurationFrom(DurationSource.TIME_GROUP)
+            .calculate()
+            .getPerTagDuration()
+    );
+  }
+
+  private static BigDecimal toHours(long durationSecs) {
     return BigDecimal
         .valueOf(durationSecs)
         .divide(BigDecimal.valueOf(3600), 2, BigDecimal.ROUND_HALF_UP);

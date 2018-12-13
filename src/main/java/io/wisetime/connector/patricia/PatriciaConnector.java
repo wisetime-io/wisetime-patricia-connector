@@ -42,8 +42,6 @@ import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
-import static io.wisetime.connector.utils.TagDurationCalculator.tagDuration;
-import static io.wisetime.connector.utils.TagDurationCalculator.tagDurationDisregardingExperienceRating;
 
 /**
  * WiseTime Connector implementation for Patricia.
@@ -197,10 +195,15 @@ public class PatriciaConnector implements WiseTimeConnector {
           .withMessage("No hourly rate is found for " + user.get());
     }
 
-    final BigDecimal workedHoursWithoutExpRating = ChargeCalculator.calculateDurationToHours(
-        tagDurationDisregardingExperienceRating(userPostedTime)
-    );
-    final BigDecimal workedHoursWithExpRating = ChargeCalculator.calculateDurationToHours(tagDuration(userPostedTime));
+    final BigDecimal actualWorkedHoursPerCase =
+        ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(userPostedTime);
+    final BigDecimal actualWorkedHoursWithExpRatingPerCase =
+        ChargeCalculator.calculateActualWorkedHoursWithExpRatingPerCase(userPostedTime);
+
+    final BigDecimal chargeableHoursPerCase =
+        ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(userPostedTime);
+    final BigDecimal chargeableHoursWithExpRatingPerCase =
+        ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
 
     final String comment = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE)
         .orElseGet(() -> templateFormatter.format(userPostedTime));
@@ -213,8 +216,10 @@ public class PatriciaConnector implements WiseTimeConnector {
             .timeRegComment(comment)
             .chargeComment(comment) // TODO (AL) implement internal & public template logic
             .hourlyRate(hourlyRate.get())
-            .workedHoursWithExpRating(workedHoursWithExpRating)
-            .workedHoursWithoutExpRating(workedHoursWithoutExpRating)
+            .actualHoursNoExpRating(actualWorkedHoursPerCase)
+            .actualHoursWithExpRating(actualWorkedHoursWithExpRatingPerCase)
+            .chargeableHoursNoExpRating(chargeableHoursPerCase)
+            .chargeableHoursWithExpRating(chargeableHoursWithExpRatingPerCase)
             .build()
     );
 
@@ -290,14 +295,14 @@ public class PatriciaConnector implements WiseTimeConnector {
         .workCodeId(params.workCode())
         .userId(params.userId())
         .recordalDate(dbDate)
-        .actualHours(params.workedHoursWithoutExpRating()) // TODO (AL) get time rows duration
-        .chargeableHours(params.workedHoursWithoutExpRating())
+        .actualHours(params.actualHoursNoExpRating())
+        .chargeableHours(params.chargeableHoursNoExpRating())
         .comment(params.timeRegComment())
         .build();
 
-    BigDecimal chargeWithoutDiscount = params.workedHoursWithExpRating().multiply(params.hourlyRate());
+    BigDecimal chargeWithoutDiscount = params.chargeableHoursWithExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
-        discount, params.workedHoursWithExpRating(), params.hourlyRate()
+        discount, params.chargeableHoursWithExpRating(), params.hourlyRate()
     );
 
     BudgetLine budgetLine = ImmutableBudgetLine.builder()
@@ -307,12 +312,12 @@ public class PatriciaConnector implements WiseTimeConnector {
         .recordalDate(dbDate)
         .currency(currency)
         .hourlyRate(params.hourlyRate())
-        .actualWorkTotalHours(params.workedHoursWithExpRating())
-        .chargeableWorkTotalHours(params.workedHoursWithExpRating())
+        .actualWorkTotalHours(params.actualHoursWithExpRating())
+        .chargeableWorkTotalHours(params.chargeableHoursWithExpRating())
         .chargeAmount(chargeWithDiscount)
         .discountAmount(ChargeCalculator.calculateDiscountAmount(chargeWithoutDiscount, chargeWithDiscount))
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
-        .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.workedHoursWithExpRating()))
+        .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHoursWithExpRating()))
         .comment(params.chargeComment())
         .build();
 

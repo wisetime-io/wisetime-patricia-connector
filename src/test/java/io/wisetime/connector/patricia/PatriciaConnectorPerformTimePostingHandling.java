@@ -307,12 +307,11 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(timeRegistrations.get(0).recordalDate())
         .as("recordal date should equal to the current DB date")
         .isEqualTo(dbDate);
-    // TODO: (AL) uncomment once implemented
-    // assertThat(timeRegistrations.get(0).actualHours())
-    //    .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
-    //        "split equally between all tags ")
-    //    .isEqualTo(BigDecimal.valueOf(0.08));
     assertThat(timeRegistrations.get(0).actualHours())
+        .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
+            "split equally between all tags ")
+        .isEqualTo(BigDecimal.valueOf(0.08));
+    assertThat(timeRegistrations.get(0).chargeableHours())
         .as("chargeable hours should corresponds to the group duration, excluding user experience and " +
             "split equally between all tags ")
         .isEqualByComparingTo(BigDecimal.valueOf(.14));
