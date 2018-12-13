@@ -53,6 +53,8 @@ class PatriciaConnectorPerformTagUpdateTest {
   @BeforeAll
   static void setUp() {
     RuntimeConfig.rebuild();
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "test");
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "test:1");
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
     }).getInstance(PatriciaConnector.class);
@@ -98,8 +100,8 @@ class PatriciaConnectorPerformTagUpdateTest {
 
   @Test
   void performTagUpdate_new_cases_found() throws IOException {
-    final PatriciaDao.PatriciaCase case1 = randomDataGenerator.randomCase();
-    final PatriciaDao.PatriciaCase case2 = randomDataGenerator.randomCase();
+    final PatriciaDao.Case case1 = randomDataGenerator.randomCase();
+    final PatriciaDao.Case case2 = randomDataGenerator.randomCase();
 
     when(connectorStore.getLong(anyString())).thenReturn(Optional.empty());
 
@@ -119,6 +121,6 @@ class PatriciaConnectorPerformTagUpdateTest {
         .as("We should create tags for both new cases found, with the configured tag upsert path");
 
     verify(connectorStore, times(1))
-        .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.getId());
+        .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.caseId());
   }
 }
