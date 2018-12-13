@@ -71,8 +71,6 @@ public class PatriciaConnector implements WiseTimeConnector {
     Preconditions.checkArgument(patriciaDao.isHealthy(), "Patricia Database connection is not healthy");
     initializeModifiers();
 
-    new TemplateFormatter(TemplateFormatterConfig.builder().build());
-
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
     this.timeRegTemplateFormatter = connectorModule.getTemplateFormatter();
