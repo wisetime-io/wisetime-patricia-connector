@@ -31,6 +31,7 @@ import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.integrate.WiseTimeConnector;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
 import io.wisetime.connector.template.TemplateFormatter;
+import io.wisetime.connector.template.TemplateFormatterConfig;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -56,7 +57,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
-  private TemplateFormatter templateFormatter;
+  private TemplateFormatter timeRegTemplateFormatter;
+  private TemplateFormatter chargeTemplateFormatter;
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
@@ -66,40 +68,15 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   @Override
   public void init(final ConnectorModule connectorModule) {
-    Preconditions.checkArgument(patriciaDao.isHealthy(),
-        "Patricia Database connection is not healthy");
+    Preconditions.checkArgument(patriciaDao.isHealthy(), "Patricia Database connection is not healthy");
     initializeModifiers();
+
+    new TemplateFormatter(TemplateFormatterConfig.builder().build());
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
-    this.templateFormatter = connectorModule.getTemplateFormatter();
-  }
-
-  private void initializeModifiers() {
-    defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
-        .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
-
-    modifierWorkCodeMap =
-        Arrays.stream(
-            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
-              .orElseThrow(() ->
-                  new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
-              .split(","))
-            .map(tagModifierMapping -> {
-              String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
-              if (modifierAndWorkCode.length != 2) {
-                throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
-                    + "Expecting modifier:workCode, got: " + tagModifierMapping);
-              }
-              return modifierAndWorkCode;
-            })
-            .collect(Collectors.toMap(
-                modifierWorkCodePair -> modifierWorkCodePair[0],
-                modifierWorkCodePair -> modifierWorkCodePair[1])
-            );
-
-    Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
-        "Patricia modifiers mapping should include work code for default modifier");
+    this.timeRegTemplateFormatter = connectorModule.getTemplateFormatter();
+    this.chargeTemplateFormatter = createChargeTemplateFormatter();
   }
 
   /**
@@ -205,16 +182,17 @@ public class PatriciaConnector implements WiseTimeConnector {
     final BigDecimal chargeableHoursWithExpRatingPerCase =
         ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
 
-    final String comment = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE)
-        .orElseGet(() -> templateFormatter.format(userPostedTime));
+    final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
+    final String timeRegComment =  commentOverride.orElse(timeRegTemplateFormatter.format(userPostedTime));
+    final String chargeComment = commentOverride.orElse(chargeTemplateFormatter.format(userPostedTime));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
             .patriciaCase(patriciaCase)
             .workCode(workCode.get())
             .userId(user.get())
-            .timeRegComment(comment)
-            .chargeComment(comment) // TODO (AL) implement internal & public template logic
+            .timeRegComment(timeRegComment)
+            .chargeComment(chargeComment)
             .hourlyRate(hourlyRate.get())
             .actualHoursNoExpRating(actualWorkedHoursPerCase)
             .actualHoursWithExpRating(actualWorkedHoursWithExpRatingPerCase)
@@ -242,6 +220,48 @@ public class PatriciaConnector implements WiseTimeConnector {
           .withMessage("There was an error posting time to the Patricia database");
     }
     return PostResult.SUCCESS;
+  }
+
+  private void initializeModifiers() {
+    defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
+        .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
+
+    modifierWorkCodeMap =
+        Arrays.stream(
+            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
+                .orElseThrow(() ->
+                    new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
+                .split(","))
+            .map(tagModifierMapping -> {
+              String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
+              if (modifierAndWorkCode.length != 2) {
+                throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
+                    + "Expecting modifier:workCode, got: " + tagModifierMapping);
+              }
+              return modifierAndWorkCode;
+            })
+            .collect(Collectors.toMap(
+                modifierWorkCodePair -> modifierWorkCodePair[0],
+                modifierWorkCodePair -> modifierWorkCodePair[1])
+            );
+
+    Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
+        "Patricia modifiers mapping should include work code for default modifier");
+  }
+
+  /**
+   * Customer {@link TemplateFormatter} for creating narrative for BudgetLine record.
+   */
+  TemplateFormatter createChargeTemplateFormatter() {
+    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
+        .map(Boolean::parseBoolean)
+        .orElse(false);
+
+    return new TemplateFormatter(TemplateFormatterConfig.builder()
+        .withTemplatePath(includeTimeDuration
+            ? "classpath:patricia-with-duration_charge.ftl"
+            : "classpath:patricia-no-duration_charge.ftl")
+        .build());
   }
 
   private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {

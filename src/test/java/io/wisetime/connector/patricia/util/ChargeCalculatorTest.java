@@ -17,7 +17,6 @@ import java.util.Optional;
 import io.wisetime.connector.patricia.ImmutableDiscount;
 import io.wisetime.connector.patricia.RandomDataGenerator;
 import io.wisetime.connector.testutils.FakeEntities;
-import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 
