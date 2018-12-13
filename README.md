@@ -1,5 +1,11 @@
 # WiseTime Patricia Connector
 
+## Status
+
+We are currently in the process of open sourcing the WiseTime Patricia Connector. This notice will be removed once we have pushed everything to this repository.
+
+## About
+
 The WiseTime Patricia Connector connects [WiseTime](https://wisetime.io) to [Patricia](https://www.patrix.com/patricia), and will automatically:
 
 * Create a new WiseTime tag whenever a new Patricia case is created;
