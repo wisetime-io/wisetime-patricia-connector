@@ -31,6 +31,7 @@ import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.integrate.WiseTimeConnector;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
 import io.wisetime.connector.template.TemplateFormatter;
+import io.wisetime.connector.template.TemplateFormatterConfig;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -42,8 +43,6 @@ import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
-import static io.wisetime.connector.utils.TagDurationCalculator.tagDuration;
-import static io.wisetime.connector.utils.TagDurationCalculator.tagDurationDisregardingExperienceRating;
 
 /**
  * WiseTime Connector implementation for Patricia.
@@ -58,7 +57,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
-  private TemplateFormatter templateFormatter;
+  private TemplateFormatter timeRegTemplateFormatter;
+  private TemplateFormatter chargeTemplateFormatter;
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
@@ -76,34 +76,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
-    this.templateFormatter = connectorModule.getTemplateFormatter();
-  }
-
-  private void initializeModifiers() {
-    defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
-        .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
-
-    modifierWorkCodeMap =
-        Arrays.stream(
-            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
-              .orElseThrow(() ->
-                  new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
-              .split(","))
-            .map(tagModifierMapping -> {
-              String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
-              if (modifierAndWorkCode.length != 2) {
-                throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
-                    + "Expecting modifier:workCode, got: " + tagModifierMapping);
-              }
-              return modifierAndWorkCode;
-            })
-            .collect(Collectors.toMap(
-                modifierWorkCodePair -> modifierWorkCodePair[0],
-                modifierWorkCodePair -> modifierWorkCodePair[1])
-            );
-
-    Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
-        "Patricia modifiers mapping should include work code for default modifier");
+    this.timeRegTemplateFormatter = connectorModule.getTemplateFormatter();
+    this.chargeTemplateFormatter = createChargeTemplateFormatter();
   }
 
   private void initializeRoleTypeId() {
@@ -204,24 +178,32 @@ public class PatriciaConnector implements WiseTimeConnector {
           .withMessage("No hourly rate is found for " + user.get());
     }
 
-    final BigDecimal workedHoursWithoutExpRating = ChargeCalculator.calculateDurationToHours(
-        tagDurationDisregardingExperienceRating(userPostedTime)
-    );
-    final BigDecimal workedHoursWithExpRating = ChargeCalculator.calculateDurationToHours(tagDuration(userPostedTime));
+    final BigDecimal actualWorkedHoursPerCase =
+        ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(userPostedTime);
+    final BigDecimal actualWorkedHoursWithExpRatingPerCase =
+        ChargeCalculator.calculateActualWorkedHoursWithExpRatingPerCase(userPostedTime);
 
-    final String comment = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE)
-        .orElseGet(() -> templateFormatter.format(userPostedTime));
+    final BigDecimal chargeableHoursPerCase =
+        ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(userPostedTime);
+    final BigDecimal chargeableHoursWithExpRatingPerCase =
+        ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
+
+    final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
+    final String timeRegComment =  commentOverride.orElse(timeRegTemplateFormatter.format(userPostedTime));
+    final String chargeComment = commentOverride.orElse(chargeTemplateFormatter.format(userPostedTime));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
             .patriciaCase(patriciaCase)
             .workCode(workCode.get())
             .userId(user.get())
-            .timeRegComment(comment)
-            .chargeComment(comment) // TODO (AL) implement internal & public template logic
+            .timeRegComment(timeRegComment)
+            .chargeComment(chargeComment)
             .hourlyRate(hourlyRate.get())
-            .workedHoursWithExpRating(workedHoursWithExpRating)
-            .workedHoursWithoutExpRating(workedHoursWithoutExpRating)
+            .actualHoursNoExpRating(actualWorkedHoursPerCase)
+            .actualHoursWithExpRating(actualWorkedHoursWithExpRatingPerCase)
+            .chargeableHoursNoExpRating(chargeableHoursPerCase)
+            .chargeableHoursWithExpRating(chargeableHoursWithExpRatingPerCase)
             .build()
     );
 
@@ -244,6 +226,48 @@ public class PatriciaConnector implements WiseTimeConnector {
           .withMessage("There was an error posting time to the Patricia database");
     }
     return PostResult.SUCCESS;
+  }
+
+  private void initializeModifiers() {
+    defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
+        .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
+
+    modifierWorkCodeMap =
+        Arrays.stream(
+            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
+                .orElseThrow(() ->
+                    new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
+                .split(","))
+            .map(tagModifierMapping -> {
+              String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
+              if (modifierAndWorkCode.length != 2) {
+                throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
+                    + "Expecting modifier:workCode, got: " + tagModifierMapping);
+              }
+              return modifierAndWorkCode;
+            })
+            .collect(Collectors.toMap(
+                modifierWorkCodePair -> modifierWorkCodePair[0],
+                modifierWorkCodePair -> modifierWorkCodePair[1])
+            );
+
+    Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
+        "Patricia modifiers mapping should include work code for default modifier");
+  }
+
+  /**
+   * Customer {@link TemplateFormatter} for creating narrative for BudgetLine record.
+   */
+  TemplateFormatter createChargeTemplateFormatter() {
+    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
+        .map(Boolean::parseBoolean)
+        .orElse(false);
+
+    return new TemplateFormatter(TemplateFormatterConfig.builder()
+        .withTemplatePath(includeTimeDuration
+            ? "classpath:patricia-with-duration_charge.ftl"
+            : "classpath:patricia-no-duration_charge.ftl")
+        .build());
   }
 
   private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {
@@ -299,15 +323,15 @@ public class PatriciaConnector implements WiseTimeConnector {
         .workCodeId(params.workCode())
         .userId(params.userId())
         .recordalDate(dbDate)
-        .actualHours(params.workedHoursWithoutExpRating()) // TODO (AL) get time rows duration
-        .chargeableHours(params.workedHoursWithoutExpRating())
+        .actualHours(params.actualHoursNoExpRating())
+        .chargeableHours(params.chargeableHoursNoExpRating())
         .comment(params.timeRegComment())
         .build();
 
-    BigDecimal actualWorkTotalAmount = params.workedHoursWithoutExpRating().multiply(params.hourlyRate());
-    BigDecimal chargeWithoutDiscount = params.workedHoursWithExpRating().multiply(params.hourlyRate());
+    BigDecimal actualWorkTotalAmount = params.chargeableHoursNoExpRating().multiply(params.hourlyRate());
+    BigDecimal chargeWithoutDiscount = params.chargeableHoursWithExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
-        discount, params.workedHoursWithExpRating(), params.hourlyRate()
+        discount, params.chargeableHoursWithExpRating(), params.hourlyRate()
     );
 
     BudgetLine budgetLine = ImmutableBudgetLine.builder()
@@ -317,13 +341,13 @@ public class PatriciaConnector implements WiseTimeConnector {
         .recordalDate(dbDate)
         .currency(currency)
         .hourlyRate(params.hourlyRate())
-        .actualWorkTotalHours(params.workedHoursWithExpRating())
-        .chargeableWorkTotalHours(params.workedHoursWithExpRating())
+        .actualWorkTotalHours(params.actualHoursWithExpRating())
+        .chargeableWorkTotalHours(params.chargeableHoursWithExpRating())
         .chargeableAmount(chargeWithDiscount)
         .actualWorkTotalAmount(actualWorkTotalAmount)
         .discountAmount(ChargeCalculator.calculateDiscountAmount(chargeWithoutDiscount, chargeWithDiscount))
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
-        .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.workedHoursWithExpRating()))
+        .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHoursWithExpRating()))
         .comment(params.chargeComment())
         .build();
 

@@ -270,7 +270,7 @@ class PatriciaDaoTest {
     final long caseId = FAKER.number().randomNumber();
     final TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
         .caseId(caseId)
-        .workCodeId(FAKER.lorem().word())
+        .workCodeId(FAKER.bothify("?#"))
         .userId(FAKER.name().firstName())
         .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .actualHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))

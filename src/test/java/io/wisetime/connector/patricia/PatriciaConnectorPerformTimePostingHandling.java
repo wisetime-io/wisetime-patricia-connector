@@ -177,6 +177,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_unable_to_get_date_from_db() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
+    timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -204,6 +205,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_unable_to_get_currency() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
+    timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -260,7 +262,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
 
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110110).modifier("").durationSecs(600);
+    timeRow1.setDescription(FAKER.lorem().characters());
     final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110109).modifier("").durationSecs(300);
+    timeRow2.setDescription(FAKER.lorem().characters());
 
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
@@ -280,8 +284,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDao.findCaseByTagName(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
-        // Last tag has no matching Patricia issue
-        .thenReturn(Optional.empty());
+        .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -311,12 +314,11 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(timeRegistrations.get(0).recordalDate())
         .as("recordal date should equal to the current DB date")
         .isEqualTo(dbDate);
-    // TODO: (AL) uncomment once implemented
-    // assertThat(timeRegistrations.get(0).actualHours())
-    //    .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
-    //        "split equally between all tags ")
-    //    .isEqualTo(BigDecimal.valueOf(0.08));
     assertThat(timeRegistrations.get(0).actualHours())
+        .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
+            "split equally between all tags ")
+        .isEqualTo(BigDecimal.valueOf(0.08));
+    assertThat(timeRegistrations.get(0).chargeableHours())
         .as("chargeable hours should corresponds to the group duration, excluding user experience and " +
             "split equally between all tags ")
         .isEqualByComparingTo(BigDecimal.valueOf(.14));
@@ -359,6 +361,8 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_narrativeFromTemplateFormatter() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
+    timeRow.setDurationSecs(1000);
+    timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -384,7 +388,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDao.getDbDate()).thenReturn(Optional.of(dbDate));
     when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
-    when(templateFormatter.format(any(TimeGroup.class))).thenReturn("narrative from template");
+    when(templateFormatter.format(any(TimeGroup.class))).thenReturn("time reg narrative from template");
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -395,14 +399,16 @@ class PatriciaConnectorPerformTimePostingHandling {
     verify(patriciaDao).addTimeRegistration(timeRegCaptor.capture());
     assertThat(timeRegCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .isEqualTo("narrative from template");
+        .isEqualTo("time reg narrative from template");
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
     verify(patriciaDao).addBudgetLine(budgetLineCaptor.capture());
     assertThat(budgetLineCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .isEqualTo("narrative from template");
+        .contains("Total worked time: 16m 40s\n" +
+            "Total chargeable time: 25m\n" +
+            "Experience factor: 50%");
   }
 
   private void verifyPatriciaNotUpdated() {
