@@ -82,7 +82,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private void initializeRoleTypeId() {
     this.roleTypeId = RuntimeConfig.getInt(PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID)
-        .orElseThrow(() -> new IllegalStateException("Required configuration param PATRICIA_ROLE_TYPE_ID"));
+        .orElseThrow(() -> new IllegalStateException("Required configuration param PATRICIA_ROLE_TYPE_ID is not set."));
   }
 
   /**
@@ -230,13 +230,16 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private void initializeModifiers() {
     defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
-        .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
+        .orElseThrow(() -> new IllegalStateException("Required configuration param DEFAULT_MODIFIER is not set."));
 
     modifierWorkCodeMap =
         Arrays.stream(
             RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
                 .orElseThrow(() ->
-                    new IllegalStateException("Required configuration param TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS"))
+                    new IllegalStateException(
+                        "Required configuration param TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set."
+                    )
+                )
                 .split(","))
             .map(tagModifierMapping -> {
               String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
