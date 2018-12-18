@@ -132,7 +132,12 @@ public class PatriciaDao {
   }
 
   boolean canQueryDbDate() {
-    return getDbDate().isPresent();
+    try {
+      getDbDate();
+      return true;
+    } catch (Exception ex) {
+      return false;
+    }
   }
 
   List<Case> findCasesOrderById(final long startIdExclusive, final int maxResults) {
@@ -213,12 +218,12 @@ public class PatriciaDao {
         .listResult(this::mapDiscountRecord);  // returns an immutable list
   }
 
-  Optional<Case> findCaseByTagName(final String tagName) {
+  Optional<Case> findCaseByCaseNumber(final String caseNumber) {
     return query().select("SELECT vcn.case_id, vcn.case_number, pc.case_catch_word, " +
         " pc.case_type_id, pc.state_id, pc.application_type_id " +
         " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
         " WHERE vcn.case_number = ?")
-        .params(tagName)
+        .params(caseNumber)
         .firstResult(this::mapToCase);
   }
 
@@ -330,8 +335,8 @@ public class PatriciaDao {
         .run();
   }
 
-  Optional<String> getDbDate() {
-    return query().select("SELECT getdate()").firstResult(Mappers.singleString());
+  String getDbDate() {
+    return query().select("SELECT getdate()").firstResult(Mappers.singleString()).get();
   }
 
   int findNextBudgetLineSeqNum(long caseId) {

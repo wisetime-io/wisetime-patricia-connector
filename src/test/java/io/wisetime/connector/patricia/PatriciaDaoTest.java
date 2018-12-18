@@ -179,7 +179,7 @@ class PatriciaDaoTest {
     assertThat(patriciaDao.findCurrency(caseId, roleTypeId))
         .as("should be able to retrieve currency defined for a case")
         .contains(currency);
-    assertThat(patriciaDao.findCurrency(FAKER.number().randomDigit(), roleTypeId))
+    assertThat(patriciaDao.findCurrency(caseId + 1, roleTypeId))
         .as("no defined currency for that case id")
         .isEmpty();
   }
@@ -198,7 +198,7 @@ class PatriciaDaoTest {
         .isEqualByComparingTo(BigDecimal.valueOf(personHourlyRateForWorkCode));
 
     assertThat(patriciaDao.findUserHourlyRate("workCode", "username2").get())
-        .as("should get the user's general hourly rate if no rate set fpr work code")
+        .as("should get the user's general hourly rate if no rate set for work code")
         .isEqualByComparingTo(BigDecimal.valueOf(personGeneralHourlyRate));
 
     assertThat(patriciaDao.findUserHourlyRate("workCode", "username3"))
@@ -236,14 +236,14 @@ class PatriciaDaoTest {
   }
 
   @Test
-  void findCaseByTagName() {
+  void findCaseByCaseNumber() {
     Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
     saveCase(patriciaCase);
 
-    assertThat(patriciaDao.findCaseByTagName(patriciaCase.caseNumber()))
+    assertThat(patriciaDao.findCaseByCaseNumber(patriciaCase.caseNumber()))
         .as("Should return Patricia case if it exists in DB")
         .contains(patriciaCase);
-    assertThat(patriciaDao.findCaseByTagName(patriciaCase.caseNumber() + "123"))
+    assertThat(patriciaDao.findCaseByCaseNumber(patriciaCase.caseNumber() + "123"))
         .as("Should return empty if case is not in DB")
         .isEmpty();
   }

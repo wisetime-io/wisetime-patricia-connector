@@ -82,7 +82,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private void initializeRoleTypeId() {
     this.roleTypeId = RuntimeConfig.getInt(PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID)
-        .orElseThrow(() -> new IllegalStateException("Required configuration PATRICIA_ROLE_TYPE_ID is not set"));
+        .orElseThrow(() -> new IllegalStateException("Required configuration param PATRICIA_ROLE_TYPE_ID"));
   }
 
   /**
@@ -165,7 +165,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
-      final Optional<Case> issue = patriciaDao.findCaseByTagName(tag.getName());
+      final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
       if (!issue.isPresent()) {
         log.warn("Can't find Patricia case for tag {}. No time will be posted for this tag.", tag.getName());
       }
@@ -236,7 +236,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         Arrays.stream(
             RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
                 .orElseThrow(() ->
-                    new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
+                    new IllegalStateException("Required configuration param TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS"))
                 .split(","))
             .map(tagModifierMapping -> {
               String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
@@ -305,8 +305,7 @@ public class PatriciaConnector implements WiseTimeConnector {
   }
 
   private void executeCreateTimeAndChargeRecord(PatriciaDao.CreateTimeAndChargeParams params) {
-    final String dbDate = patriciaDao.getDbDate()
-        .orElseThrow(() -> new RuntimeException("Failed to get current database date"));
+    final String dbDate = patriciaDao.getDbDate();
 
     final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
         .orElseThrow(() -> new RuntimeException(
