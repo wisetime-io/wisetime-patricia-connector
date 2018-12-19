@@ -62,14 +62,17 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
+  private int roleTypeId;
 
   @Inject
   private PatriciaDao patriciaDao;
 
   @Override
   public void init(final ConnectorModule connectorModule) {
-    Preconditions.checkArgument(patriciaDao.isHealthy(), "Patricia Database connection is not healthy");
+    Preconditions.checkArgument(patriciaDao.hasExpectedSchema(),
+        "Patricia Database schema is unsupported by this connector");
     initializeModifiers();
+    initializeRoleTypeId();
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
@@ -77,12 +80,17 @@ public class PatriciaConnector implements WiseTimeConnector {
     this.chargeTemplateFormatter = createChargeTemplateFormatter();
   }
 
+  private void initializeRoleTypeId() {
+    this.roleTypeId = RuntimeConfig.getInt(PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID)
+        .orElseThrow(() -> new IllegalStateException("Required configuration param PATRICIA_ROLE_TYPE_ID is not set."));
+  }
+
   /**
    * Called by the WiseTime Connector library on a regular schedule to check if Connectos is healthy.
    */
   @Override
   public boolean isConnectorHealthy() {
-    return patriciaDao.isHealthy();
+    return patriciaDao.canQueryDbDate();
   }
 
   /**
@@ -157,7 +165,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
-      final Optional<Case> issue = patriciaDao.findCaseByTagName(tag.getName());
+      final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
       if (!issue.isPresent()) {
         log.warn("Can't find Patricia case for tag {}. No time will be posted for this tag.", tag.getName());
       }
@@ -222,13 +230,16 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private void initializeModifiers() {
     defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
-        .orElseThrow(() -> new IllegalStateException("Required configuration DEFAULT_MODIFIER is not set"));
+        .orElseThrow(() -> new IllegalStateException("Required configuration param DEFAULT_MODIFIER is not set."));
 
     modifierWorkCodeMap =
         Arrays.stream(
             RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
                 .orElseThrow(() ->
-                    new IllegalStateException("Required configuration TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set"))
+                    new IllegalStateException(
+                        "Required configuration param TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set."
+                    )
+                )
                 .split(","))
             .map(tagModifierMapping -> {
               String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
@@ -297,15 +308,16 @@ public class PatriciaConnector implements WiseTimeConnector {
   }
 
   private void executeCreateTimeAndChargeRecord(PatriciaDao.CreateTimeAndChargeParams params) {
-    final String dbDate = patriciaDao.getDbDate()
-        .orElseThrow(() -> new RuntimeException("Failed to get current database date"));
+    final String dbDate = patriciaDao.getDbDate();
 
-    final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId())
+    final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
         .orElseThrow(() -> new RuntimeException(
             "Could not find external system currency for case " + params.patriciaCase().caseNumber())
         );
 
-    final List<Discount> discounts = patriciaDao.findDiscounts(params.workCode(), params.patriciaCase().caseId());
+    final List<Discount> discounts = patriciaDao.findDiscounts(
+        params.workCode(), roleTypeId, params.patriciaCase().caseId()
+    );
     final Optional<Discount> discount = ChargeCalculator.getMostApplicableDiscount(discounts, params.patriciaCase());
 
     TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
@@ -318,6 +330,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .comment(params.timeRegComment())
         .build();
 
+    BigDecimal actualWorkTotalAmount = params.chargeableHoursNoExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithoutDiscount = params.chargeableHoursWithExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
         discount, params.chargeableHoursWithExpRating(), params.hourlyRate()
@@ -332,14 +345,15 @@ public class PatriciaConnector implements WiseTimeConnector {
         .hourlyRate(params.hourlyRate())
         .actualWorkTotalHours(params.actualHoursWithExpRating())
         .chargeableWorkTotalHours(params.chargeableHoursWithExpRating())
-        .chargeAmount(chargeWithDiscount)
+        .chargeableAmount(chargeWithDiscount)
+        .actualWorkTotalAmount(actualWorkTotalAmount)
         .discountAmount(ChargeCalculator.calculateDiscountAmount(chargeWithoutDiscount, chargeWithDiscount))
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
         .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHoursWithExpRating()))
         .comment(params.chargeComment())
         .build();
 
-    patriciaDao.updateBudgetHeader(params.patriciaCase().caseId());
+    patriciaDao.updateBudgetHeader(params.patriciaCase().caseId(), dbDate);
     patriciaDao.addTimeRegistration(timeRegistration);
     patriciaDao.addBudgetLine(budgetLine);
 

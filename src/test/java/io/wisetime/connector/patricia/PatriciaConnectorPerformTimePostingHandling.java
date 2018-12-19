@@ -40,6 +40,7 @@ import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -76,12 +77,15 @@ class PatriciaConnectorPerformTimePostingHandling {
         ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "defaultModifier:DM, modifier2:M2"
     );
 
+    // Set a role type id to use
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
+
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDao).isHealthy();
+    doReturn(true).when(patriciaDao).hasExpectedSchema();
 
     connector.init(new ConnectorModule(apiClient, templateFormatter, connectorStore));
   }
@@ -188,7 +192,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     String userLogin = FAKER.internet().uuid();
     when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
-    when(patriciaDao.findCaseByTagName(tag.getName())).thenReturn(Optional.of(randomDataGenerator.randomCase()));
+    when(patriciaDao.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(randomDataGenerator.randomCase()));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("failed to load database date")
@@ -218,8 +222,8 @@ class PatriciaConnectorPerformTimePostingHandling {
     String userLogin = FAKER.internet().uuid();
     when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
-    when(patriciaDao.findCaseByTagName(tag.getName())).thenReturn(Optional.of(patriciaCase));
-    when(patriciaDao.getDbDate()).thenReturn(Optional.of(LocalDateTime.now().toString()));
+    when(patriciaDao.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(patriciaCase));
+    when(patriciaDao.getDbDate()).thenReturn(LocalDateTime.now().toString());
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("unable to find currency for the case")
@@ -277,11 +281,10 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
     final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
 
-    when(patriciaDao.findCaseByTagName(anyString()))
+    when(patriciaDao.findCaseByCaseNumber(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
-        // Last tag has no matching Patricia issue
-        .thenReturn(Optional.empty());
+        .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -290,8 +293,8 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
-    when(patriciaDao.getDbDate()).thenReturn(Optional.of(dbDate));
-    when(patriciaDao.findCurrency(anyLong())).thenReturn(Optional.of(currency));
+    when(patriciaDao.getDbDate()).thenReturn(dbDate);
+    when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -343,7 +346,10 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).hourlyRate())
         .as("currency should be set")
         .isEqualTo(hourlyRate);
-    assertThat(budgetLines.get(0).chargeAmount())
+    assertThat(budgetLines.get(0).actualWorkTotalAmount())
+        .as("hourly rate * actual hours (without experience rating)")
+        .isEqualByComparingTo(BigDecimal.valueOf(1.40));
+    assertThat(budgetLines.get(0).chargeableAmount())
         .as("hourly rate * chargeable hours (applying experience rating)")
         .isEqualByComparingTo(BigDecimal.valueOf(.70));
     assertThat(budgetLines.get(0).comment())
@@ -370,7 +376,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final Case patriciaCase = randomDataGenerator.randomCase(tag.getName());
-    when(patriciaDao.findCaseByTagName(anyString())).thenReturn(Optional.of(patriciaCase));
+    when(patriciaDao.findCaseByCaseNumber(anyString())).thenReturn(Optional.of(patriciaCase));
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -379,8 +385,8 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
-    when(patriciaDao.getDbDate()).thenReturn(Optional.of(dbDate));
-    when(patriciaDao.findCurrency(anyLong())).thenReturn(Optional.of(currency));
+    when(patriciaDao.getDbDate()).thenReturn(dbDate);
+    when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
     when(templateFormatter.format(any(TimeGroup.class))).thenReturn("time reg narrative from template");
 
@@ -406,7 +412,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   private void verifyPatriciaNotUpdated() {
-    verify(patriciaDao, never()).updateBudgetHeader(anyLong());
+    verify(patriciaDao, never()).updateBudgetHeader(anyLong(), anyString());
     verify(patriciaDao, never()).addTimeRegistration(any());
     verify(patriciaDao, never()).addBudgetLine(any());
   }

@@ -55,12 +55,16 @@ class PatriciaConnectorPerformTagUpdateTest {
     RuntimeConfig.rebuild();
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "test");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "test:1");
+
+    // Set a role type id to use
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
+
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDao).isHealthy();
+    doReturn(true).when(patriciaDao).hasExpectedSchema();
 
     connector.init(new ConnectorModule(apiClient, mock(TemplateFormatter.class), connectorStore));
   }
