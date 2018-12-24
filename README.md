@@ -31,15 +31,15 @@ Configuration is done through environment variables. The following configuration
 
 The following configuration options are optional.
 
-| Environment Variable                 | Description                                                                                                                             |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| CALLER_KEY                           | The caller key that WiseTime should provide with post time webhook calls. The connector does not authenticate Webhook calls if not set. |
-| TAG_UPSERT_PATH                      | The tag folder path to use during creating Wisetime tags. Defaults to `/Patricia/` (trailing slash required). Use `/` for root folder.  |
-| TAG_UPSERT_BATCH_SIZE                | Number of tags to upsert at a time. A large batch size mitigates API call latency. Defaults to 500.                                     |
-| INVOICE_COMMENT_OVERRIDE             | Optional label to use in time charge/invoice record instead of narrative provided with posted time.                                     |
-| INCLUDE_DURATIONS_IN_INVOICE_COMMENT | Set to `true` if app duration should be included in the time comment. Default value is `false`.                                         |
-| PERSISTENT_DIR                       | If set, the connector will use the directory as the storage location for SQLite to keep track the Patricia cases it have synced.        |
-| TZ                                   | Docker standard variable. It is recommended to set it with the OS time zone where Patricia server is running. Defaults to `UTC`.        |
+| Environment Variable                 | Description                                                                                                                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CALLER_KEY                           | The caller key that WiseTime should provide with post time webhook calls. The connector does not authenticate Webhook calls if not set.                                                                        |
+| TAG_UPSERT_PATH                      | The tag folder path to use during creating Wisetime tags. Defaults to `/Patricia/` (trailing slash required). Use `/` for root folder.                                                                         |
+| TAG_UPSERT_BATCH_SIZE                | Number of tags to upsert at a time. A large batch size mitigates API call latency. Defaults to 500.                                                                                                            |
+| INVOICE_COMMENT_OVERRIDE             | Optional label to use in time charge/invoice record instead of narrative provided with posted time.                                                                                                            |
+| INCLUDE_DURATIONS_IN_INVOICE_COMMENT | Set to `true` if app duration should be included in the time comment. Default value is `false`.                                                                                                                |
+| DATA_DIR                             | If set, the connector will use the directory as the location for storing data to keep track on the Patricia cases By default, WiseTime Connector will create a temporary dir under `/tmp` as its data storage. |
+| TZ                                   | Docker standard variable. It is recommended to set it with the OS time zone where Patricia server is running. Defaults to `UTC`.                                                                               |
 
 
 ## Running the WiseTime Postgres Connector
@@ -50,8 +50,8 @@ The easiest way to run the Postgres Connector is using Docker. For example:
 docker run -d \
     -p 8080:8080 \
     --restart=unless-stopped \
-    -v volume_name:/tmp/wt-sqlite \
-    -e PERSISTENT_DIR=/tmp/wt-sqlite \
+    -v volume_name:/usr/local/wisetime-connector/data \
+    -e DATA_DIR=/usr/local/wisetime-connector/data \
     -e API_KEY=YourWisetimeApiKey \
     -e PATRICIA_JDBC_URL="YourPaticiaDatabaseUrl" \
     -e PATRICIA_JDBC_USERNAME=YourPatriciaDbUsername \
