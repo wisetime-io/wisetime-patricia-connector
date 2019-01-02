@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -108,9 +109,15 @@ public class PatriciaConnector implements WiseTimeConnector {
       );
 
       if (newCases.isEmpty()) {
+        log.info("No new tags found. Last case ID synced: {}", storedLastSyncedCaseId);
         return;
       } else {
         try {
+          log.info("Detected {} new {}: {}",
+              newCases.size(),
+              newCases.size() > 1 ? "tags" : "tag",
+              newCases.stream().map(Case::caseNumber).collect(Collectors.joining(", ")));
+
           final List<UpsertTagRequest> upsertRequests = newCases
               .stream()
               .map(item -> item.toUpsertTagRequest(tagUpsertPath()))
@@ -120,7 +127,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
           final long lastSyncedCaseId = newCases.get(newCases.size() - 1).caseId();
           connectorStore.putLong(PATRICIA_LAST_SYNC_KEY, lastSyncedCaseId);
-
+          log.info("Last synced case ID: {}", lastSyncedCaseId);
         } catch (IOException e) {
           // The batch will be retried since we didn't update the last synced case ID
           // Let scheduler know that this batch has failed
@@ -136,6 +143,10 @@ public class PatriciaConnector implements WiseTimeConnector {
    */
   @Override
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
+    log.info("Posted time received for {}: {}",
+        userPostedTime.getUser().getExternalId(),
+        Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
+
     Optional<String> callerKeyOpt = callerKey();
     if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
       return PostResult.PERMANENT_FAILURE
