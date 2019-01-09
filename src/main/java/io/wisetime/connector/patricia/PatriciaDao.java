@@ -139,7 +139,7 @@ public class PatriciaDao {
   }
 
   List<Case> findCasesOrderById(final long startIdExclusive, final int maxResults) {
-    return query().select("SELECT TOP ? vcn.case_id, vcn.case_number, pc.case_catch_word, " +
+    return query().select("SELECT TOP (?) vcn.case_id, vcn.case_number, pc.case_catch_word, " +
         " pc.case_type_id, pc.state_id, pc.application_type_id " +
         " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id " +
         " WHERE vcn.case_id > ? ORDER BY vcn.case_id ASC")
