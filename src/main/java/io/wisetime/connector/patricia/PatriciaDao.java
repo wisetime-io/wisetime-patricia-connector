@@ -415,6 +415,7 @@ public class PatriciaDao {
 
     String caseNumber();
 
+    @Nullable
     String caseCatchWord();
 
     Integer caseTypeId();
