@@ -12,6 +12,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -44,6 +49,7 @@ import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
+import static io.wisetime.connector.utils.ActivityTimeCalculator.startTime;
 
 /**
  * WiseTime Connector implementation for Patricia.
@@ -53,6 +59,7 @@ import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
 public class PatriciaConnector implements WiseTimeConnector {
 
   private static final Logger log = LoggerFactory.getLogger(PatriciaConnector.class);
+  private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
 
@@ -149,30 +156,25 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     Optional<String> callerKeyOpt = callerKey();
     if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("Invalid caller key in post time webhook call");
+      return PostResult.PERMANENT_FAILURE.withMessage("Invalid caller key in post time webhook call");
     }
 
     if (userPostedTime.getTags().isEmpty()) {
-      return PostResult.SUCCESS
-          .withMessage("Time group has no tags. There is nothing to post to Patricia.");
+      return PostResult.SUCCESS.withMessage("Time group has no tags. There is nothing to post to Patricia.");
     }
 
     if (userPostedTime.getTimeRows().isEmpty()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("Cannot post time group with no time rows");
+      return PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows");
     }
 
     final Optional<String> workCode = getTimeGroupWorkCode(userPostedTime.getTimeRows());
     if (!workCode.isPresent()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("Time group contains invalid modifier.");
+      return PostResult.PERMANENT_FAILURE.withMessage("Time group contains invalid modifier.");
     }
 
     final Optional<String> user = patriciaDao.findLoginByEmail(userPostedTime.getUser().getExternalId());
     if (!user.isPresent()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
+      return PostResult.PERMANENT_FAILURE.withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
@@ -185,8 +187,12 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
     if (!hourlyRate.isPresent()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("No hourly rate is found for " + user.get());
+      return PostResult.PERMANENT_FAILURE.withMessage("No hourly rate is found for " + user.get());
+    }
+
+    final Optional<LocalDateTime> activityStartTime = startTime(userPostedTime);
+    if (!activityStartTime.isPresent()) {
+      return PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows");
     }
 
     final BigDecimal actualWorkedHoursPerCase =
@@ -215,6 +221,7 @@ public class PatriciaConnector implements WiseTimeConnector {
             .actualHoursWithExpRating(actualWorkedHoursWithExpRatingPerCase)
             .chargeableHoursNoExpRating(chargeableHoursPerCase)
             .chargeableHoursWithExpRating(chargeableHoursWithExpRatingPerCase)
+            .recordalDate(activityStartTime.get())
             .build()
     );
 
@@ -335,7 +342,10 @@ public class PatriciaConnector implements WiseTimeConnector {
         .caseId(params.patriciaCase().caseId())
         .workCodeId(params.workCode())
         .userId(params.userId())
-        .recordalDate(dbDate)
+        .submissionDate(dbDate)
+        .recordalDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
+            .withZoneSameInstant(getTimeZone())
+            .format(DATE_TIME_FORMATTER))
         .actualHours(params.actualHoursNoExpRating())
         .chargeableHours(params.chargeableHoursNoExpRating())
         .comment(params.timeRegComment())
@@ -369,5 +379,9 @@ public class PatriciaConnector implements WiseTimeConnector {
     patriciaDao.addBudgetLine(budgetLine);
 
     log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
+  }
+
+  private ZoneId getTimeZone() {
+    return ZoneId.of(RuntimeConfig.getString(PatriciaConnectorConfigKey.TIMEZONE).orElse("UTC"));
   }
 }

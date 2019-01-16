@@ -272,7 +272,8 @@ class PatriciaDaoTest {
         .caseId(caseId)
         .workCodeId(FAKER.bothify("?#"))
         .userId(FAKER.name().firstName())
-        .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .recordalDate(LocalDateTime.now().minusDays(1).format(DATE_TIME_FORMATTER))
+        .submissionDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .actualHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .chargeableHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .comment(FAKER.lorem().sentence())
@@ -294,8 +295,8 @@ class PatriciaDaoTest {
               .as("should have save correct case id")
               .isEqualTo(timeRegistration.caseId());
           assertThat(rs.getString(3))
-              .as("should have save correct recordal date")
-              .isEqualTo(timeRegistration.recordalDate());
+              .as("should have save correct submission date")
+              .isEqualTo(timeRegistration.submissionDate());
           assertThat(rs.getString(4))
               .as("should have save correct user id date")
               .isEqualTo(timeRegistration.userId());
@@ -313,8 +314,8 @@ class PatriciaDaoTest {
           assertThat(rs.getLong(11)).isEqualTo(timeRegistration.caseId());
           assertThat(rs.getString(12)).isEqualTo(timeRegistration.comment());
           assertThat(rs.getString(13)).isEqualTo(timeRegistration.comment());
-          assertThat(rs.getString(14)).isEqualTo(timeRegistration.recordalDate());
-          assertThat(rs.getString(15)).isEqualTo(timeRegistration.recordalDate());
+          assertThat(rs.getString(14)).isEqualTo(timeRegistration.submissionDate());
+          assertThat(rs.getString(15)).isEqualTo(timeRegistration.submissionDate());
 
           return Void.TYPE;
         });

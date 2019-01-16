@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -267,7 +268,7 @@ public class PatriciaDao {
     )
         .namedParam("wc", timeRegistration.workCodeId())
         .namedParam("cid", timeRegistration.caseId())
-        .namedParam("rd", timeRegistration.recordalDate())
+        .namedParam("rd", timeRegistration.submissionDate())
         .namedParam("li", timeRegistration.userId())
         .namedParam("cd", timeRegistration.recordalDate())
         .namedParam("wt", timeRegistration.actualHours())
@@ -278,8 +279,8 @@ public class PatriciaDao {
         .namedParam("bci", timeRegistration.caseId())
         .namedParam("tci", timeRegistration.comment())
         .namedParam("tc", timeRegistration.comment())
-        .namedParam("bd", timeRegistration.recordalDate())
-        .namedParam("eid", timeRegistration.recordalDate())
+        .namedParam("bd", timeRegistration.submissionDate())
+        .namedParam("eid", timeRegistration.submissionDate())
         .run();
   }
 
@@ -489,6 +490,8 @@ public class PatriciaDao {
 
     String userId();
 
+    String submissionDate();
+
     String recordalDate();
 
     BigDecimal actualHours();
@@ -552,6 +555,8 @@ public class PatriciaDao {
     BigDecimal chargeableHoursNoExpRating();
 
     BigDecimal chargeableHoursWithExpRating();
+
+    LocalDateTime recordalDate();
   }
 
   /**

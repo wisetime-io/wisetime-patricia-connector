@@ -311,8 +311,8 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(timeRegistrations.get(0).workCodeId())
         .as("should use default work code")
         .isEqualTo("DM");
-    assertThat(timeRegistrations.get(0).recordalDate())
-        .as("recordal date should equal to the current DB date")
+    assertThat(timeRegistrations.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
         .isEqualTo(dbDate);
     assertThat(timeRegistrations.get(0).actualHours())
         .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +

@@ -39,7 +39,7 @@ The following configuration options are optional.
 | INVOICE_COMMENT_OVERRIDE             | Optional label to use in time charge/invoice record instead of narrative provided with posted time.                                                                                                                           |
 | INCLUDE_DURATIONS_IN_INVOICE_COMMENT | Set to `true` if app duration should be included in the time comment. Default value is `false`.                                                                                                                               |
 | DATA_DIR                             | If set, the connector will use the directory as the location for storing data to keep track on the Patricia cases it has synced. By default, WiseTime Connector will create a temporary dir under `/tmp` as its data storage. |
-| TZ                                   | Docker standard variable. It is recommended to set it with the OS time zone where Patricia server is running. Defaults to `UTC`.                                                                                              |
+| TIMEZONE                             | The timezone to use when posting time to Patricia, e.g. `Australia/Perth`. Defaults to `UTC`.                                                                                                                                 |
 
 
 ## Running the WiseTime Postgres Connector
