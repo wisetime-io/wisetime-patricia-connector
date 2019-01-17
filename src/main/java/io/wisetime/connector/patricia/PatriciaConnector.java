@@ -198,8 +198,10 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
 
-    final String timeRegComment =  commentOverride.orElse(patriciaFormatterConfig.getTimeRegistrationTemplate().format(userPostedTime));
-    final String chargeComment = commentOverride.orElse(patriciaFormatterConfig.getChargeTemplate().format(userPostedTime));
+    final String timeRegComment =  commentOverride
+        .orElse(patriciaFormatterConfig.getTimeRegistrationTemplate().format(userPostedTime));
+    final String chargeComment = commentOverride
+        .orElse(patriciaFormatterConfig.getChargeTemplate().format(userPostedTime));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
