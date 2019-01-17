@@ -1,1 +1,0 @@
-../../main/resources/patricia-with-duration_charge.ftl
