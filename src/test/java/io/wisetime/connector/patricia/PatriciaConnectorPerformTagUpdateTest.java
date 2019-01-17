@@ -23,8 +23,6 @@ import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.generated.connect.UpsertTagRequest;
 
-import static io.wisetime.connector.patricia.ConnectorLauncher.ChargeTemplate;
-import static io.wisetime.connector.patricia.ConnectorLauncher.TimeRegistrationTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -47,10 +45,12 @@ import static org.mockito.Mockito.when;
 class PatriciaConnectorPerformTagUpdateTest {
 
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
-  private static PatriciaDao patriciaDao = mock(PatriciaDao.class);
-  private static ApiClient apiClient = mock(ApiClient.class);
-  private static ConnectorStore connectorStore = mock(ConnectorStore.class);
+  private static PatriciaDao patriciaDaoMock = mock(PatriciaDao.class);
+  private static ApiClient apiClientMock = mock(ApiClient.class);
+  private static ConnectorStore connectorStoreMock = mock(ConnectorStore.class);
   private static PatriciaConnector connector;
+  private static TemplateFormatter timeRegistrationTemplateMock = mock(TemplateFormatter.class);
+  private static TemplateFormatter chargeTemplateMock = mock(TemplateFormatter.class);
 
   @BeforeAll
   static void setUp() {
@@ -61,53 +61,56 @@ class PatriciaConnectorPerformTagUpdateTest {
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
+    PatriciaFormatterConfigurator formatAccessorMock = mock(PatriciaFormatterConfigurator.class);
+    when(formatAccessorMock.getChargeTemplate())
+        .thenReturn(chargeTemplateMock);
+
+    when(formatAccessorMock.getTimeRegistrationTemplate())
+        .thenReturn(timeRegistrationTemplateMock);
+
     connector = Guice.createInjector(binder -> {
-      binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
-      binder.bind(TemplateFormatter.class)
-          .annotatedWith(TimeRegistrationTemplate.class)
-          .toInstance(mock(TemplateFormatter.class));
-      binder.bind(TemplateFormatter.class)
-          .annotatedWith(ChargeTemplate.class)
-          .toInstance(mock(TemplateFormatter.class));
+      binder.bind(PatriciaDao.class).toProvider(() -> patriciaDaoMock);
+      binder.bind(PatriciaFormatterConfigurator.class)
+          .toInstance(formatAccessorMock);
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDao).hasExpectedSchema();
+    doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
 
-    connector.init(new ConnectorModule(apiClient, connectorStore));
+    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock));
   }
 
   @BeforeEach
   void setUpTest() {
-    reset(patriciaDao);
-    reset(apiClient);
-    reset(connectorStore);
+    reset(patriciaDaoMock);
+    reset(apiClientMock);
+    reset(connectorStoreMock);
   }
 
   @Test
   void performTagUpdate_no_cases() {
-    when(patriciaDao.findCasesOrderById(anyLong(), anyInt())).thenReturn(ImmutableList.of());
+    when(patriciaDaoMock.findCasesOrderById(anyLong(), anyInt())).thenReturn(ImmutableList.of());
 
     connector.performTagUpdate();
 
-    verifyZeroInteractions(apiClient);
-    verify(connectorStore, never()).putLong(anyString(), anyLong());
+    verifyZeroInteractions(apiClientMock);
+    verify(connectorStoreMock, never()).putLong(anyString(), anyLong());
   }
 
   @Test
   void performTagUpdate_upsert_error() throws IOException {
-    when(patriciaDao.findCasesOrderById(anyLong(), anyInt()))
+    when(patriciaDaoMock.findCasesOrderById(anyLong(), anyInt()))
         .thenReturn(ImmutableList.of(randomDataGenerator.randomCase(), randomDataGenerator.randomCase()));
 
     IOException casedBy = new IOException("Expected exception");
     doThrow(casedBy)
-        .when(apiClient).tagUpsertBatch(anyList());
+        .when(apiClientMock).tagUpsertBatch(anyList());
 
     assertThatThrownBy(() -> connector.performTagUpdate())
         .isInstanceOf(RuntimeException.class)
         .hasCause(casedBy);
-    verify(apiClient, times(1)).tagUpsertBatch(anyList());
-    verify(connectorStore, never()).putLong(anyString(), anyLong());
+    verify(apiClientMock, times(1)).tagUpsertBatch(anyList());
+    verify(connectorStoreMock, never()).putLong(anyString(), anyLong());
   }
 
   @Test
@@ -115,24 +118,24 @@ class PatriciaConnectorPerformTagUpdateTest {
     final PatriciaDao.Case case1 = randomDataGenerator.randomCase();
     final PatriciaDao.Case case2 = randomDataGenerator.randomCase();
 
-    when(connectorStore.getLong(anyString())).thenReturn(Optional.empty());
+    when(connectorStoreMock.getLong(anyString())).thenReturn(Optional.empty());
 
     ArgumentCaptor<Integer> batchSize = ArgumentCaptor.forClass(Integer.class);
-    when(patriciaDao.findCasesOrderById(anyLong(), batchSize.capture()))
+    when(patriciaDaoMock.findCasesOrderById(anyLong(), batchSize.capture()))
         .thenReturn(ImmutableList.of(case1, case2))
         .thenReturn(ImmutableList.of());
 
     connector.performTagUpdate();
 
     ArgumentCaptor<List<UpsertTagRequest>> upsertRequests = ArgumentCaptor.forClass(List.class);
-    verify(apiClient, times(1)).tagUpsertBatch(upsertRequests.capture());
+    verify(apiClientMock, times(1)).tagUpsertBatch(upsertRequests.capture());
 
     assertThat(upsertRequests.getValue())
         .containsExactlyInAnyOrder(case1.toUpsertTagRequest("/Patricia/"),
             case2.toUpsertTagRequest("/Patricia/"))
         .as("We should create tags for both new cases found, with the configured tag upsert path");
 
-    verify(connectorStore, times(1))
+    verify(connectorStoreMock, times(1))
         .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.caseId());
   }
 }

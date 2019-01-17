@@ -5,7 +5,6 @@
 package io.wisetime.connector.patricia;
 
 import com.google.inject.AbstractModule;
-import com.google.inject.BindingAnnotation;
 import com.google.inject.Guice;
 
 import com.zaxxer.hikari.HikariConfig;
@@ -14,18 +13,13 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import javax.sql.DataSource;
 
 import io.wisetime.connector.ServerRunner;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.config.RuntimeConfigKey;
-import io.wisetime.connector.template.TemplateFormatter;
-import io.wisetime.connector.template.TemplateFormatterConfig;
 
 /**
  * Connector application entry point.
@@ -107,56 +101,7 @@ public class ConnectorLauncher {
 
       bind(DataSource.class).toInstance(new HikariDataSource(hikariConfig));
 
-      install(new PatriciaTemplateFormatterModule());
     }
-  }
-
-  /**
-   * Binds the Patricia template formatter via DI
-   */
-  public static class PatriciaTemplateFormatterModule extends AbstractModule {
-    @Override
-    protected void configure() {
-      boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
-          .map(Boolean::parseBoolean)
-          .orElse(false);
-
-      bind(TemplateFormatter.class)
-          .annotatedWith(TimeRegistrationTemplate.class)
-          .toInstance(createTemplateFormatter(() -> includeTimeDuration
-              ? "classpath:patricia-with-duration_time-registration.ftl"
-              : "classpath:patricia-no-duration_time-registration.ftl"
-          ));
-
-      bind(TemplateFormatter.class)
-          .annotatedWith(ChargeTemplate.class)
-          .toInstance(createTemplateFormatter(() -> includeTimeDuration
-              ? "classpath:patricia-with-duration_charge.ftl"
-              : "classpath:patricia-no-duration_charge.ftl"
-          ));
-    }
-  }
-
-  private static TemplateFormatter createTemplateFormatter(Supplier<String> getTemplatePath) {
-    return new TemplateFormatter(TemplateFormatterConfig.builder()
-        .withTemplatePath(getTemplatePath.get())
-        .build());
-  }
-
-  /**
-   * Marker interface for injecting TemplateFormatter used for generating comment/narrtive for Patricia Time Registration
-   */
-  @Retention(RetentionPolicy.RUNTIME)
-  @BindingAnnotation
-  public @interface TimeRegistrationTemplate {
-  }
-
-  /**
-   * Marker interface for injecting TemplateFormatter used for generating comment/narrtive for Patricia Budget Line
-   */
-  @Retention(RetentionPolicy.RUNTIME)
-  @BindingAnnotation
-  public @interface ChargeTemplate {
   }
 
 }

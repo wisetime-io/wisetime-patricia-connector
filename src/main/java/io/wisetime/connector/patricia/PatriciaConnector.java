@@ -31,16 +31,13 @@ import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.integrate.WiseTimeConnector;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
-import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.UpsertTagRequest;
 import spark.Request;
 
-import static io.wisetime.connector.patricia.ConnectorLauncher.ChargeTemplate;
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
-import static io.wisetime.connector.patricia.ConnectorLauncher.TimeRegistrationTemplate;
 import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
@@ -68,12 +65,7 @@ public class PatriciaConnector implements WiseTimeConnector {
   private PatriciaDao patriciaDao;
 
   @Inject
-  @TimeRegistrationTemplate
-  private TemplateFormatter timeRegTemplateFormatter;
-
-  @Inject
-  @ChargeTemplate
-  private TemplateFormatter chargeTemplateFormatter;
+  private PatriciaFormatterConfigurator patriciaFormatterConfig;
 
   @Override
   public void init(final ConnectorModule connectorModule) {
@@ -205,8 +197,9 @@ public class PatriciaConnector implements WiseTimeConnector {
         ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
 
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
-    final String timeRegComment =  commentOverride.orElse(timeRegTemplateFormatter.format(userPostedTime));
-    final String chargeComment = commentOverride.orElse(chargeTemplateFormatter.format(userPostedTime));
+
+    final String timeRegComment =  commentOverride.orElse(patriciaFormatterConfig.getTimeRegistrationTemplate().format(userPostedTime));
+    final String chargeComment = commentOverride.orElse(patriciaFormatterConfig.getChargeTemplate().format(userPostedTime));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()

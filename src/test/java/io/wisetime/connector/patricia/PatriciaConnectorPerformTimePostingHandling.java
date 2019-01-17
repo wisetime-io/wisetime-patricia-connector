@@ -33,7 +33,6 @@ import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.User;
 import spark.Request;
 
-import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaTemplateFormatterModule;
 import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
@@ -79,8 +78,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
     connector = Guice.createInjector(
-        binder -> binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao),
-        new PatriciaTemplateFormatterModule()
+        binder -> binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao)
     )
         .getInstance(PatriciaConnector.class);
 
