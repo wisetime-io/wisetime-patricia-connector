@@ -23,6 +23,8 @@ import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.generated.connect.UpsertTagRequest;
 
+import static io.wisetime.connector.patricia.ConnectorLauncher.ChargeTemplate;
+import static io.wisetime.connector.patricia.ConnectorLauncher.TimeRegistrationTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -61,12 +63,18 @@ class PatriciaConnectorPerformTagUpdateTest {
 
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
+      binder.bind(TemplateFormatter.class)
+          .annotatedWith(TimeRegistrationTemplate.class)
+          .toInstance(mock(TemplateFormatter.class));
+      binder.bind(TemplateFormatter.class)
+          .annotatedWith(ChargeTemplate.class)
+          .toInstance(mock(TemplateFormatter.class));
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
     doReturn(true).when(patriciaDao).hasExpectedSchema();
 
-    connector.init(new ConnectorModule(apiClient, mock(TemplateFormatter.class), connectorStore));
+    connector.init(new ConnectorModule(apiClient, connectorStore));
   }
 
   @BeforeEach

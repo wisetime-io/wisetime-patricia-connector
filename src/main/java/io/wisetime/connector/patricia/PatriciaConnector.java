@@ -32,14 +32,15 @@ import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.integrate.WiseTimeConnector;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
 import io.wisetime.connector.template.TemplateFormatter;
-import io.wisetime.connector.template.TemplateFormatterConfig;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.UpsertTagRequest;
 import spark.Request;
 
+import static io.wisetime.connector.patricia.ConnectorLauncher.ChargeTemplate;
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
+import static io.wisetime.connector.patricia.ConnectorLauncher.TimeRegistrationTemplate;
 import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
@@ -58,8 +59,6 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
-  private TemplateFormatter timeRegTemplateFormatter;
-  private TemplateFormatter chargeTemplateFormatter;
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
@@ -67,6 +66,14 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   @Inject
   private PatriciaDao patriciaDao;
+
+  @Inject
+  @TimeRegistrationTemplate
+  private TemplateFormatter timeRegTemplateFormatter;
+
+  @Inject
+  @ChargeTemplate
+  private TemplateFormatter chargeTemplateFormatter;
 
   @Override
   public void init(final ConnectorModule connectorModule) {
@@ -77,8 +84,6 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
-    this.timeRegTemplateFormatter = connectorModule.getTemplateFormatter();
-    this.chargeTemplateFormatter = createChargeTemplateFormatter();
   }
 
   private void initializeRoleTypeId() {
@@ -267,21 +272,6 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
         "Patricia modifiers mapping should include work code for default modifier");
-  }
-
-  /**
-   * Customer {@link TemplateFormatter} for creating narrative for BudgetLine record.
-   */
-  TemplateFormatter createChargeTemplateFormatter() {
-    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
-        .map(Boolean::parseBoolean)
-        .orElse(false);
-
-    return new TemplateFormatter(TemplateFormatterConfig.builder()
-        .withTemplatePath(includeTimeDuration
-            ? "classpath:patricia-with-duration_charge.ftl"
-            : "classpath:patricia-no-duration_charge.ftl")
-        .build());
   }
 
   private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {

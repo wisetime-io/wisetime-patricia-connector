@@ -27,14 +27,13 @@ import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
-import io.wisetime.connector.template.TemplateFormatter;
-import io.wisetime.connector.testutils.FakeEntities;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.User;
 import spark.Request;
 
+import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaTemplateFormatterModule;
 import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
@@ -67,7 +66,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   private static ApiClient apiClient = mock(ApiClient.class);
   private static ConnectorStore connectorStore = mock(ConnectorStore.class);
   private static PatriciaConnector connector;
-  private static TemplateFormatter templateFormatter = mock(TemplateFormatter.class);
 
   @BeforeAll
   static void setUp() {
@@ -80,14 +78,16 @@ class PatriciaConnectorPerformTimePostingHandling {
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
-    connector = Guice.createInjector(binder -> {
-      binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
-    }).getInstance(PatriciaConnector.class);
+    connector = Guice.createInjector(
+        binder -> binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao),
+        new PatriciaTemplateFormatterModule()
+    )
+        .getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
     doReturn(true).when(patriciaDao).hasExpectedSchema();
 
-    connector.init(new ConnectorModule(apiClient, templateFormatter, connectorStore));
+    connector.init(new ConnectorModule(apiClient, connectorStore));
   }
 
   @BeforeEach
@@ -388,8 +388,6 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDao.getDbDate()).thenReturn(dbDate);
     when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
-    when(templateFormatter.format(any(TimeGroup.class))).thenReturn("time reg narrative from template");
-
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("Valid time group should be posted successfully")
         .isEqualTo(PostResult.SUCCESS);
@@ -399,7 +397,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     verify(patriciaDao).addTimeRegistration(timeRegCaptor.capture());
     assertThat(timeRegCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .isEqualTo("time reg narrative from template");
+        .startsWith(timeGroup.getDescription());
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
