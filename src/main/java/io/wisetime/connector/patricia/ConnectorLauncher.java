@@ -100,8 +100,6 @@ public class ConnectorLauncher {
           hikariConfig.getUsername());
 
       bind(DataSource.class).toInstance(new HikariDataSource(hikariConfig));
-
     }
   }
-
 }

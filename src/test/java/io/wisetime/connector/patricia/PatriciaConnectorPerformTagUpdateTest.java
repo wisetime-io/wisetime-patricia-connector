@@ -20,7 +20,6 @@ import io.wisetime.connector.api_client.ApiClient;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
-import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.generated.connect.UpsertTagRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,8 +48,6 @@ class PatriciaConnectorPerformTagUpdateTest {
   private static ApiClient apiClientMock = mock(ApiClient.class);
   private static ConnectorStore connectorStoreMock = mock(ConnectorStore.class);
   private static PatriciaConnector connector;
-  private static TemplateFormatter timeRegistrationTemplateMock = mock(TemplateFormatter.class);
-  private static TemplateFormatter chargeTemplateMock = mock(TemplateFormatter.class);
 
   @BeforeAll
   static void setUp() {
@@ -61,17 +58,8 @@ class PatriciaConnectorPerformTagUpdateTest {
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
-    PatriciaFormatterConfigurator formatAccessorMock = mock(PatriciaFormatterConfigurator.class);
-    when(formatAccessorMock.getChargeTemplate())
-        .thenReturn(chargeTemplateMock);
-
-    when(formatAccessorMock.getTimeRegistrationTemplate())
-        .thenReturn(timeRegistrationTemplateMock);
-
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDaoMock);
-      binder.bind(PatriciaFormatterConfigurator.class)
-          .toInstance(formatAccessorMock);
     }).getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail

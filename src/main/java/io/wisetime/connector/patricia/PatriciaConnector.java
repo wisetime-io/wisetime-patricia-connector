@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -31,6 +32,8 @@ import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.connector.integrate.WiseTimeConnector;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
+import io.wisetime.connector.template.TemplateFormatter;
+import io.wisetime.connector.template.TemplateFormatterConfig;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -56,6 +59,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
+  private TemplateFormatter timeRegistrationTemplate;
+  private TemplateFormatter chargeTemplate;
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
@@ -64,15 +69,13 @@ public class PatriciaConnector implements WiseTimeConnector {
   @Inject
   private PatriciaDao patriciaDao;
 
-  @Inject
-  private PatriciaFormatterConfigurator patriciaFormatterConfig;
-
   @Override
   public void init(final ConnectorModule connectorModule) {
     Preconditions.checkArgument(patriciaDao.hasExpectedSchema(),
         "Patricia Database schema is unsupported by this connector");
     initializeModifiers();
     initializeRoleTypeId();
+    initializeTemplateFormatters();
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
@@ -199,9 +202,9 @@ public class PatriciaConnector implements WiseTimeConnector {
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
 
     final String timeRegComment =  commentOverride
-        .orElse(patriciaFormatterConfig.getTimeRegistrationTemplate().format(userPostedTime));
+        .orElse(timeRegistrationTemplate.format(userPostedTime));
     final String chargeComment = commentOverride
-        .orElse(patriciaFormatterConfig.getChargeTemplate().format(userPostedTime));
+        .orElse(chargeTemplate.format(userPostedTime));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
@@ -354,5 +357,26 @@ public class PatriciaConnector implements WiseTimeConnector {
     patriciaDao.addBudgetLine(budgetLine);
 
     log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
+  }
+
+  private void initializeTemplateFormatters() {
+    boolean includeTimeDuration =
+        RuntimeConfig.getString(ConnectorLauncher.PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
+
+    if (includeTimeDuration) {
+      timeRegistrationTemplate = createTemplateFormatter(() -> "classpath:patricia-with-duration_time-registration.ftl");
+      chargeTemplate = createTemplateFormatter(() -> "classpath:patricia-with-duration_charge.ftl");
+    } else {
+      timeRegistrationTemplate = createTemplateFormatter(() -> "classpath:patricia-no-duration_time-registration.ftl");
+      chargeTemplate = createTemplateFormatter(() -> "classpath:patricia-no-duration_charge.ftl");
+    }
+  }
+
+  private TemplateFormatter createTemplateFormatter(Supplier<String> getTemplatePath) {
+    return new TemplateFormatter(TemplateFormatterConfig.builder()
+        .withTemplatePath(getTemplatePath.get())
+        .build());
   }
 }
