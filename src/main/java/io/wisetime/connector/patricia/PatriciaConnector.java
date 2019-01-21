@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -364,17 +363,17 @@ public class PatriciaConnector implements WiseTimeConnector {
             .orElse(false);
 
     if (includeTimeDuration) {
-      timeRegistrationTemplate = createTemplateFormatter(() -> "classpath:patricia-with-duration_time-registration.ftl");
-      chargeTemplate = createTemplateFormatter(() -> "classpath:patricia-with-duration_charge.ftl");
+      timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-with-duration_time-registration.ftl");
+      chargeTemplate = createTemplateFormatter("classpath:patricia-with-duration_charge.ftl");
     } else {
-      timeRegistrationTemplate = createTemplateFormatter(() -> "classpath:patricia-no-duration_time-registration.ftl");
-      chargeTemplate = createTemplateFormatter(() -> "classpath:patricia-no-duration_charge.ftl");
+      timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-no-duration_time-registration.ftl");
+      chargeTemplate = createTemplateFormatter("classpath:patricia-no-duration_charge.ftl");
     }
   }
 
-  private TemplateFormatter createTemplateFormatter(Supplier<String> getTemplatePath) {
+  private TemplateFormatter createTemplateFormatter(String getTemplatePath) {
     return new TemplateFormatter(TemplateFormatterConfig.builder()
-        .withTemplatePath(getTemplatePath.get())
+        .withTemplatePath(getTemplatePath)
         .build());
   }
 }
