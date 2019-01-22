@@ -27,8 +27,6 @@ import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.integrate.ConnectorModule;
-import io.wisetime.connector.template.TemplateFormatter;
-import io.wisetime.connector.testutils.FakeEntities;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -63,11 +61,10 @@ class PatriciaConnectorPerformTimePostingHandling {
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
 
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
-  private static PatriciaDao patriciaDao = mock(PatriciaDao.class);
-  private static ApiClient apiClient = mock(ApiClient.class);
-  private static ConnectorStore connectorStore = mock(ConnectorStore.class);
+  private static PatriciaDao patriciaDaoMock = mock(PatriciaDao.class);
+  private static ApiClient apiClientMock = mock(ApiClient.class);
+  private static ConnectorStore connectorStoreMock = mock(ConnectorStore.class);
   private static PatriciaConnector connector;
-  private static TemplateFormatter templateFormatter = mock(TemplateFormatter.class);
 
   @BeforeAll
   static void setUp() {
@@ -80,27 +77,28 @@ class PatriciaConnectorPerformTimePostingHandling {
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
-    connector = Guice.createInjector(binder -> {
-      binder.bind(PatriciaDao.class).toProvider(() -> patriciaDao);
-    }).getInstance(PatriciaConnector.class);
+    connector = Guice.createInjector(
+        binder -> binder.bind(PatriciaDao.class).toProvider(() -> patriciaDaoMock)
+    )
+        .getInstance(PatriciaConnector.class);
 
     // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDao).hasExpectedSchema();
+    doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
 
-    connector.init(new ConnectorModule(apiClient, templateFormatter, connectorStore));
+    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock));
   }
 
   @BeforeEach
   void setUpTest() {
-    reset(patriciaDao);
-    reset(apiClient);
-    reset(connectorStore);
+    reset(patriciaDaoMock);
+    reset(apiClientMock);
+    reset(connectorStoreMock);
 
     // Ensure that code in the transaction lambda gets exercised
     doAnswer(invocation -> {
       ((Runnable) invocation.getArgument(0)).run();
       return null;
-    }).when(patriciaDao).asTransaction(any());
+    }).when(patriciaDaoMock).asTransaction(any());
   }
 
   @AfterEach
@@ -115,7 +113,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .as("caller id not matched")
         .isEqualTo(PostResult.PERMANENT_FAILURE.withMessage("Invalid caller key in post time webhook call"));
 
-    verifyZeroInteractions(patriciaDao);
+    verifyZeroInteractions(patriciaDaoMock);
   }
 
   @Test
@@ -128,7 +126,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .as("no tags in time group")
         .isEqualTo(PostResult.SUCCESS.withMessage("Time group has no tags. There is nothing to post to Patricia."));
 
-    verifyZeroInteractions(patriciaDao);
+    verifyZeroInteractions(patriciaDaoMock);
   }
 
   @Test
@@ -141,7 +139,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .as("no time rows in time group")
         .isEqualTo(PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows"));
 
-    verifyZeroInteractions(patriciaDao);
+    verifyZeroInteractions(patriciaDaoMock);
   }
 
 
@@ -163,7 +161,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
-    when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("failed to load database date")
@@ -190,9 +188,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
-    when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
-    when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
-    when(patriciaDao.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(randomDataGenerator.randomCase()));
+    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
+    when(patriciaDaoMock.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(randomDataGenerator.randomCase()));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("failed to load database date")
@@ -220,10 +218,10 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
-    when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
-    when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
-    when(patriciaDao.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(patriciaCase));
-    when(patriciaDao.getDbDate()).thenReturn(LocalDateTime.now().toString());
+    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
+    when(patriciaDaoMock.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(patriciaCase));
+    when(patriciaDaoMock.getDbDate()).thenReturn(LocalDateTime.now().toString());
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("unable to find currency for the case")
@@ -281,7 +279,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
     final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
 
-    when(patriciaDao.findCaseByCaseNumber(anyString()))
+    when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
         .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
@@ -291,10 +289,10 @@ class PatriciaConnectorPerformTimePostingHandling {
     String currency = FAKER.currency().code();
     BigDecimal hourlyRate = BigDecimal.TEN;
 
-    when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
-    when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
-    when(patriciaDao.getDbDate()).thenReturn(dbDate);
-    when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
+    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -302,7 +300,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Time Registration creation
     ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDao, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
     List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
 
     assertThat(timeRegistrations.get(0).caseId())
@@ -328,7 +326,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDao, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
     List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
 
     assertThat(budgetLines.get(0).caseId())
@@ -362,7 +360,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
     timeRow.setDurationSecs(1000);
-    timeRow.setDescription(FAKER.lorem().characters());
+    timeRow.setDescription(FAKER.superhero().descriptor());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -370,25 +368,24 @@ class PatriciaConnectorPerformTimePostingHandling {
         .timeRows(ImmutableList.of(timeRow))
         .user(user)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS)
         .totalDurationSecs(1500);
 
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final Case patriciaCase = randomDataGenerator.randomCase(tag.getName());
-    when(patriciaDao.findCaseByCaseNumber(anyString())).thenReturn(Optional.of(patriciaCase));
+    when(patriciaDaoMock.findCaseByCaseNumber(anyString())).thenReturn(Optional.of(patriciaCase));
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
     String currency = FAKER.currency().code();
     BigDecimal hourlyRate = BigDecimal.TEN;
 
-    when(patriciaDao.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
-    when(patriciaDao.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
-    when(patriciaDao.getDbDate()).thenReturn(dbDate);
-    when(patriciaDao.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
-
-    when(templateFormatter.format(any(TimeGroup.class))).thenReturn("time reg narrative from template");
+    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -396,14 +393,14 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Time Registration creation
     ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDao).addTimeRegistration(timeRegCaptor.capture());
+    verify(patriciaDaoMock).addTimeRegistration(timeRegCaptor.capture());
     assertThat(timeRegCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .isEqualTo("time reg narrative from template");
+        .startsWith(timeGroup.getDescription());
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDao).addBudgetLine(budgetLineCaptor.capture());
+    verify(patriciaDaoMock).addBudgetLine(budgetLineCaptor.capture());
     assertThat(budgetLineCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
         .contains("Total worked time: 16m 40s\n" +
@@ -412,9 +409,9 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   private void verifyPatriciaNotUpdated() {
-    verify(patriciaDao, never()).updateBudgetHeader(anyLong(), anyString());
-    verify(patriciaDao, never()).addTimeRegistration(any());
-    verify(patriciaDao, never()).addBudgetLine(any());
+    verify(patriciaDaoMock, never()).updateBudgetHeader(anyLong(), anyString());
+    verify(patriciaDaoMock, never()).addTimeRegistration(any());
+    verify(patriciaDaoMock, never()).addBudgetLine(any());
   }
 
   private Request fakeRequest() {

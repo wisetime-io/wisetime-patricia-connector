@@ -58,8 +58,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
-  private TemplateFormatter timeRegTemplateFormatter;
-  private TemplateFormatter chargeTemplateFormatter;
+  private TemplateFormatter timeRegistrationTemplate;
+  private TemplateFormatter chargeTemplate;
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
@@ -74,11 +74,10 @@ public class PatriciaConnector implements WiseTimeConnector {
         "Patricia Database schema is unsupported by this connector");
     initializeModifiers();
     initializeRoleTypeId();
+    initializeTemplateFormatters();
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
-    this.timeRegTemplateFormatter = connectorModule.getTemplateFormatter();
-    this.chargeTemplateFormatter = createChargeTemplateFormatter();
   }
 
   private void initializeRoleTypeId() {
@@ -200,8 +199,9 @@ public class PatriciaConnector implements WiseTimeConnector {
         ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
 
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
-    final String timeRegComment =  commentOverride.orElse(timeRegTemplateFormatter.format(userPostedTime));
-    final String chargeComment = commentOverride.orElse(chargeTemplateFormatter.format(userPostedTime));
+
+    final String timeRegComment =  commentOverride.orElse(timeRegistrationTemplate.format(userPostedTime));
+    final String chargeComment = commentOverride.orElse(chargeTemplate.format(userPostedTime));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
@@ -267,21 +267,6 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
         "Patricia modifiers mapping should include work code for default modifier");
-  }
-
-  /**
-   * Customer {@link TemplateFormatter} for creating narrative for BudgetLine record.
-   */
-  TemplateFormatter createChargeTemplateFormatter() {
-    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
-        .map(Boolean::parseBoolean)
-        .orElse(false);
-
-    return new TemplateFormatter(TemplateFormatterConfig.builder()
-        .withTemplatePath(includeTimeDuration
-            ? "classpath:patricia-with-duration_charge.ftl"
-            : "classpath:patricia-no-duration_charge.ftl")
-        .build());
   }
 
   private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {
@@ -369,5 +354,26 @@ public class PatriciaConnector implements WiseTimeConnector {
     patriciaDao.addBudgetLine(budgetLine);
 
     log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
+  }
+
+  private void initializeTemplateFormatters() {
+    boolean includeTimeDuration =
+        RuntimeConfig.getString(ConnectorLauncher.PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
+
+    if (includeTimeDuration) {
+      timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-with-duration_time-registration.ftl");
+      chargeTemplate = createTemplateFormatter("classpath:patricia-with-duration_charge.ftl");
+    } else {
+      timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-no-duration_time-registration.ftl");
+      chargeTemplate = createTemplateFormatter("classpath:patricia-no-duration_charge.ftl");
+    }
+  }
+
+  private TemplateFormatter createTemplateFormatter(String getTemplatePath) {
+    return new TemplateFormatter(TemplateFormatterConfig.builder()
+        .withTemplatePath(getTemplatePath)
+        .build());
   }
 }

@@ -29,12 +29,7 @@ import io.wisetime.connector.config.RuntimeConfigKey;
 public class ConnectorLauncher {
 
   public static void main(final String... args) throws Exception {
-    boolean includeTimeDuration = RuntimeConfig.getString(PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
-        .map(Boolean::parseBoolean).orElse(false);
     ServerRunner.createServerBuilder()
-        .withTemplatePath(includeTimeDuration
-            ? "classpath:patricia-with-duration_time-registration.ftl"
-            : "classpath:patricia-no-duration_time-registration.ftl")
         .withWiseTimeConnector(Guice.createInjector(new PatriciaDbModule()).getInstance(PatriciaConnector.class))
         .build()
         .startServer();
