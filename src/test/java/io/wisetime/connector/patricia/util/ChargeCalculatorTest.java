@@ -14,9 +14,9 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import io.wisetime.connector.patricia.FakeEntities;
 import io.wisetime.connector.patricia.ImmutableDiscount;
 import io.wisetime.connector.patricia.RandomDataGenerator;
-import io.wisetime.connector.testutils.FakeEntities;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 
