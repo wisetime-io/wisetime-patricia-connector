@@ -22,6 +22,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -328,8 +329,8 @@ public class PatriciaConnector implements WiseTimeConnector {
         .workCodeId(params.workCode())
         .userId(params.userId())
         .submissionDate(dbDate)
-        .recordalDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
-            .withZoneSameInstant(getTimeZone())
+        .activityDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
+            .withZoneSameInstant(getTimeZoneId())
             .format(DATE_TIME_FORMATTER))
         .actualHours(params.actualHoursNoExpRating())
         .chargeableHours(params.chargeableHoursNoExpRating())
@@ -346,7 +347,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .caseId(params.patriciaCase().caseId())
         .workCodeId(params.workCode())
         .userId(params.userId())
-        .recordalDate(dbDate)
+        .submissionDate(dbDate)
         .currency(currency)
         .hourlyRate(params.hourlyRate())
         .actualWorkTotalHours(params.actualHoursWithExpRating())
@@ -384,10 +385,11 @@ public class PatriciaConnector implements WiseTimeConnector {
   private TemplateFormatter createTemplateFormatter(String getTemplatePath) {
     return new TemplateFormatter(TemplateFormatterConfig.builder()
         .withTemplatePath(getTemplatePath)
+        .withTimezone(TimeZone.getTimeZone(getTimeZoneId()))
         .build());
   }
 
-  private ZoneId getTimeZone() {
+  private ZoneId getTimeZoneId() {
     return ZoneId.of(RuntimeConfig.getString(PatriciaConnectorConfigKey.TIMEZONE).orElse("UTC"));
   }
 }

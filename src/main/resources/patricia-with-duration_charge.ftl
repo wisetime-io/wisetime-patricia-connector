@@ -3,7 +3,8 @@
 <#if getNarrativeType() == "NARRATIVE_AND_TIME_ROW_ACTIVITY_DESCRIPTIONS">
  <#list getTimeRows() as timeRow>
   <#assign rowTotalDuration += timeRow.getDurationSecs()>
-  ${timeRow.getSubmittedDate()?string.@printSubmittedDate_HH\:mm} hrs - [${timeRow.getDurationSecs()?string.@duration}] - ${timeRow.getActivity()} - ${timeRow.getDescription()}
+  <#assign activityTime = timeRow.getActivityHour()?c + timeRow.getFirstObservedInHour()?left_pad(2, "0")>
+  ${((activityTime?number)?string.@activityTimeUTC)?datetime.iso?string("HH:mm")} hrs - [${timeRow.getDurationSecs()?string.@duration}] - ${timeRow.getActivity()} - ${timeRow.getDescription()}
  </#list>
 </#if>
 <#if getDescription()?has_content || getNarrativeType() == "NARRATIVE_AND_TIME_ROW_ACTIVITY_DESCRIPTIONS">

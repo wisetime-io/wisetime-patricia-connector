@@ -73,6 +73,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(
         ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "defaultModifier:DM, modifier2:M2"
     );
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
 
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
@@ -254,14 +255,14 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  void postTime_explicitNarrative() {
+  void postTime_with_explicit_narrative() {
     final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
 
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110110).modifier("").durationSecs(600);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121).modifier("").durationSecs(600);
     timeRow1.setDescription(FAKER.lorem().characters());
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110109).modifier("").durationSecs(300);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110122).modifier("").durationSecs(300);
     timeRow2.setDescription(FAKER.lorem().characters());
 
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
@@ -312,6 +313,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(timeRegistrations.get(0).submissionDate())
         .as("submission date should equal to the current DB date")
         .isEqualTo(dbDate);
+    assertThat(timeRegistrations.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02 05:00:00");
     assertThat(timeRegistrations.get(0).actualHours())
         .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
             "split equally between all tags ")
@@ -335,8 +339,8 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).workCodeId())
         .as("should default to default work code")
         .isEqualTo("DM");
-    assertThat(budgetLines.get(0).recordalDate())
-        .as("recordal date should equal to the current DB date")
+    assertThat(budgetLines.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
         .isEqualTo(dbDate);
     assertThat(budgetLines.get(0).currency())
         .as("currency should be set")
@@ -358,9 +362,12 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_narrativeFromTemplateFormatter() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
-    timeRow.setDurationSecs(1000);
-    timeRow.setDescription(FAKER.superhero().descriptor());
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
+        .modifier("")
+        .activityHour(2018110110)
+        .firstObservedInHour(2)
+        .durationSecs(1000)
+        .description(FAKER.superhero().descriptor());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -397,6 +404,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(timeRegCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
         .startsWith(timeGroup.getDescription());
+    assertThat(timeRegCaptor.getValue().comment())
+        .as("should include time row details with start time converted in configured time zone")
+        .contains("18:02 - " + timeRow.getActivity() + " - " + timeRow.getDescription());
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);

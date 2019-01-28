@@ -272,7 +272,7 @@ class PatriciaDaoTest {
         .caseId(caseId)
         .workCodeId(FAKER.bothify("?#"))
         .userId(FAKER.name().firstName())
-        .recordalDate(LocalDateTime.now().minusDays(1).format(DATE_TIME_FORMATTER))
+        .activityDate(LocalDateTime.now().minusDays(1).format(DATE_TIME_FORMATTER))
         .submissionDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .actualHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .chargeableHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
@@ -301,7 +301,7 @@ class PatriciaDaoTest {
               .as("should have save correct user id date")
               .isEqualTo(timeRegistration.userId());
           assertThat(rs.getString(5))
-              .isEqualTo(timeRegistration.recordalDate());
+              .isEqualTo(timeRegistration.activityDate());
           assertThat(rs.getBigDecimal(6))
               .as("should have set correct actual hours")
               .isEqualByComparingTo(timeRegistration.actualHours());
@@ -328,7 +328,7 @@ class PatriciaDaoTest {
         .caseId(caseId)
         .workCodeId(FAKER.lorem().characters(1, 10))
         .userId(FAKER.name().name())
-        .recordalDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .submissionDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .currency(FAKER.currency().code())
         .hourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .effectiveHourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
@@ -367,9 +367,9 @@ class PatriciaDaoTest {
           assertThat(rs.getLong(11)).isEqualTo(budgetLine.caseId());
           assertThat(rs.getInt(12)).isEqualTo(1);
           assertThat(rs.getString(13)).isEqualTo(budgetLine.userId());
-          assertThat(rs.getString(14)).isEqualTo(budgetLine.recordalDate());
+          assertThat(rs.getString(14)).isEqualTo(budgetLine.submissionDate());
           assertThat(rs.getString(15)).isEqualTo(budgetLine.comment());
-          assertThat(rs.getString(16)).isEqualTo(budgetLine.recordalDate());
+          assertThat(rs.getString(16)).isEqualTo(budgetLine.submissionDate());
           assertThat(rs.getBigDecimal(17)).isEqualByComparingTo(budgetLine.discountPercentage());
           assertThat(rs.getBigDecimal(18)).isEqualByComparingTo(budgetLine.discountAmount());
           assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());

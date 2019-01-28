@@ -270,7 +270,7 @@ public class PatriciaDao {
         .namedParam("cid", timeRegistration.caseId())
         .namedParam("rd", timeRegistration.submissionDate())
         .namedParam("li", timeRegistration.userId())
-        .namedParam("cd", timeRegistration.recordalDate())
+        .namedParam("cd", timeRegistration.activityDate())
         .namedParam("wt", timeRegistration.actualHours())
         .namedParam("dt", timeRegistration.chargeableHours())
         .namedParam("tt", "!")
@@ -324,9 +324,9 @@ public class PatriciaDao {
         .namedParam("ttlbloamt", budgetLine.actualWorkTotalAmount())
         .namedParam("cid", budgetLine.caseId())
         .namedParam("stc", 1)
-        .namedParam("eid", budgetLine.recordalDate())
+        .namedParam("eid", budgetLine.submissionDate())
         .namedParam("tci", budgetLine.comment())
-        .namedParam("rd", budgetLine.recordalDate())
+        .namedParam("rd", budgetLine.submissionDate())
         .namedParam("discperc", budgetLine.discountPercentage())
         .namedParam("discamt", budgetLine.discountAmount())
         .namedParam("cur", budgetLine.currency())
@@ -492,7 +492,7 @@ public class PatriciaDao {
 
     String submissionDate();
 
-    String recordalDate();
+    String activityDate();
 
     BigDecimal actualHours();
 
@@ -510,7 +510,7 @@ public class PatriciaDao {
 
     String userId();
 
-    String recordalDate();
+    String submissionDate();
 
     String currency();
 
