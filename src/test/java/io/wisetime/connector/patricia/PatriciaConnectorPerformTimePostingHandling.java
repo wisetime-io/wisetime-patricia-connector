@@ -413,6 +413,12 @@ class PatriciaConnectorPerformTimePostingHandling {
     verify(patriciaDaoMock).addBudgetLine(budgetLineCaptor.capture());
     assertThat(budgetLineCaptor.getValue().comment())
         .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(budgetLineCaptor.getValue().comment())
+        .as("should include time row details with start time converted in configured time zone")
+        .contains("18:02 - " + timeRow.getActivity() + " - " + timeRow.getDescription());
+    assertThat(budgetLineCaptor.getValue().comment())
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
         .contains("Total worked time: 16m 40s\n" +
             "Total chargeable time: 25m\n" +
             "Experience factor: 50%");
