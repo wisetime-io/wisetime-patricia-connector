@@ -4,7 +4,10 @@
 
 package io.wisetime.connector.patricia;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -18,6 +21,8 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -61,6 +66,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private static final Logger log = LoggerFactory.getLogger(PatriciaConnector.class);
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
 
@@ -393,43 +399,33 @@ public class PatriciaConnector implements WiseTimeConnector {
     return ZoneId.of(RuntimeConfig.getString(PatriciaConnectorConfigKey.TIMEZONE).orElse("UTC"));
   }
 
-  private TimeGroup convertToZone(TimeGroup timeGroup, ZoneId zoneId) {
-    return new TimeGroup()
-        .callerKey(timeGroup.getCallerKey())
-        .groupId(timeGroup.getGroupId())
-        .description(timeGroup.getDescription())
-        .totalDurationSecs(timeGroup.getTotalDurationSecs())
-        .groupName(timeGroup.getGroupName())
-        .narrativeType(timeGroup.getNarrativeType())
-        .tags(timeGroup.getTags())
-        .user(timeGroup.getUser())
-        .durationSplitStrategy(timeGroup.getDurationSplitStrategy())
-        .timeRows(timeGroup.getTimeRows()
-            .stream()
-            .map(tr -> convertToZone(tr, zoneId))
-            .collect(Collectors.toList())
-        );
+  @VisibleForTesting
+  TimeGroup convertToZone(TimeGroup timeGroupUtc, ZoneId zoneId) {
+    try {
+      final String timeGroupUtcJson = OBJECT_MAPPER.writeValueAsString(timeGroupUtc);
+      final TimeGroup timeGroupCopy = OBJECT_MAPPER.readValue(timeGroupUtcJson, TimeGroup.class);
+      timeGroupCopy.getTimeRows()
+          .forEach(tr -> convertToZone(tr, zoneId));
+      return timeGroupCopy;
+    } catch (IOException ex) {
+      throw new RuntimeException("Failed to convert TimeGroup to zone " + zoneId, ex);
+    }
   }
 
-  private TimeRow convertToZone(TimeRow timeRow, ZoneId zoneId) {
+  private void convertToZone(TimeRow timeRowUtc, ZoneId zoneId) {
     final Pair<Integer, Integer> activityTimePair = convertToZone(
-        timeRow.getActivityHour(), timeRow.getFirstObservedInHour(), zoneId
+        timeRowUtc.getActivityHour(), timeRowUtc.getFirstObservedInHour(), zoneId
     );
 
-    return new TimeRow()
-        .activity(timeRow.getActivity())
-        .description(timeRow.getDescription())
-        .durationSecs(timeRow.getDurationSecs())
-        .submittedDate(timeRow.getSubmittedDate())
-        .modifier(timeRow.getModifier())
-        .source(timeRow.getSource())
+    timeRowUtc
         .activityHour(activityTimePair.getLeft())
-        .firstObservedInHour(activityTimePair.getRight());
+        .firstObservedInHour(activityTimePair.getRight())
+        .setSubmittedDate(convertToZone(timeRowUtc.getSubmittedDate(), zoneId));
   }
 
-  private Pair<Integer, Integer> convertToZone(int activityHour, int firstObservedInHour, ZoneId toZoneId) {
+  private Pair<Integer, Integer> convertToZone(int activityHourUtc, int firstObservedInHourUtc, ZoneId toZoneId) {
     final DateTimeFormatter activityTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
-    final String activityTimeUTC = activityHour + StringUtils.leftPad(String.valueOf(firstObservedInHour), 2, "0");
+    final String activityTimeUTC = activityHourUtc + StringUtils.leftPad(String.valueOf(firstObservedInHourUtc), 2, "0");
     final String activityTimeConverted = ZonedDateTime
         .of(LocalDateTime.parse(activityTimeUTC, activityTimeFormatter), ZoneOffset.UTC)
         .withZoneSameInstant(toZoneId)
@@ -439,5 +435,18 @@ public class PatriciaConnector implements WiseTimeConnector {
         Integer.parseInt(activityTimeConverted.substring(0, 10)), // yyyyMMddHH
         Integer.parseInt(activityTimeConverted.substring(10))     // mm
     );
+  }
+
+  private Long convertToZone(long submittedDateUtc, ZoneId toZoneId) {
+    DateTimeFormatter submittedDateFormatter = new DateTimeFormatterBuilder()
+        .appendPattern("yyyyMMddHHmmss")
+        .appendValue(ChronoField.MILLI_OF_SECOND, 3)
+        .toFormatter();
+    final String submittedDateConverted = ZonedDateTime
+        .of(LocalDateTime.parse(String.valueOf(submittedDateUtc), submittedDateFormatter), ZoneOffset.UTC)
+        .withZoneSameInstant(toZoneId)
+        .format(submittedDateFormatter);
+
+    return Long.parseLong(submittedDateConverted);
   }
 }

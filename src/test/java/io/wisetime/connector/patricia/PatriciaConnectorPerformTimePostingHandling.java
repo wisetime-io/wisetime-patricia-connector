@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -422,6 +423,51 @@ class PatriciaConnectorPerformTimePostingHandling {
         .contains("Total worked time: 16m 40s\n" +
             "Total chargeable time: 25m\n" +
             "Experience factor: 50%");
+  }
+
+  @Test
+  void convertToZone() {
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018123123)
+        .firstObservedInHour(12)
+        .submittedDate(20190110082359997L);
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .timeRows(ImmutableList.of(timeRow));
+
+    final TimeGroup convertedTimeGroup = connector.convertToZone(timeGroup, ZoneId.of("Asia/Kolkata")); // offset is +5.5
+
+    // check TimeGroup
+    assertThat(convertedTimeGroup)
+        .as("original time group should not be mutated")
+        .isNotSameAs(timeGroup);
+    assertThat(convertedTimeGroup.getCallerKey()).isEqualTo(timeGroup.getCallerKey());
+    assertThat(convertedTimeGroup.getGroupId()).isEqualTo(timeGroup.getGroupId());
+    assertThat(convertedTimeGroup.getGroupName()).isEqualTo(timeGroup.getGroupName());
+    assertThat(convertedTimeGroup.getDescription()).isEqualTo(timeGroup.getDescription());
+    assertThat(convertedTimeGroup.getTotalDurationSecs()).isEqualTo(timeGroup.getTotalDurationSecs());
+    assertThat(convertedTimeGroup.getNarrativeType()).isEqualTo(timeGroup.getNarrativeType());
+    assertThat(convertedTimeGroup.getTags()).isEqualTo(timeGroup.getTags());
+    assertThat(convertedTimeGroup.getUser()).isEqualTo(timeGroup.getUser());
+    assertThat(convertedTimeGroup.getDurationSplitStrategy()).isEqualTo(timeGroup.getDurationSplitStrategy());
+    assertThat(convertedTimeGroup.getTags()).isEqualTo(timeGroup.getTags());
+
+    // check TimeRow
+    assertThat(convertedTimeGroup.getTimeRows().get(0))
+        .as("original time group should not be mutated")
+        .isNotSameAs(timeRow);
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getActivityHour())
+        .as("should be converted to the specified timezone")
+        .isEqualTo(2019010104);
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getFirstObservedInHour())
+        .as("should be converted to the specified timezone")
+        .isEqualTo(42);
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getSubmittedDate())
+        .as("should be converted to the specified timezone")
+        .isEqualTo(20190110135359997L);
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getActivity()).isEqualTo(timeRow.getActivity());
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getDescription()).isEqualTo(timeRow.getDescription());
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getDurationSecs()).isEqualTo(timeRow.getDurationSecs());
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getModifier()).isEqualTo(timeRow.getModifier());
   }
 
   private void verifyPatriciaNotUpdated() {
