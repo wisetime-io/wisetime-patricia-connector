@@ -423,6 +423,10 @@ public class PatriciaConnector implements WiseTimeConnector {
         .setSubmittedDate(convertToZone(timeRowUtc.getSubmittedDate(), zoneId));
   }
 
+  /**
+   * Returns a Pair of "activity hour" (left value) and "first observed in hour" (right value) converted
+   * in the specified zone ID.
+   */
   private Pair<Integer, Integer> convertToZone(int activityHourUtc, int firstObservedInHourUtc, ZoneId toZoneId) {
     final DateTimeFormatter activityTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
     final String activityTimeUTC = activityHourUtc + StringUtils.leftPad(String.valueOf(firstObservedInHourUtc), 2, "0");
@@ -432,8 +436,8 @@ public class PatriciaConnector implements WiseTimeConnector {
         .format(activityTimeFormatter);
 
     return Pair.of(
-        Integer.parseInt(activityTimeConverted.substring(0, 10)), // yyyyMMddHH
-        Integer.parseInt(activityTimeConverted.substring(10))     // mm
+        Integer.parseInt(activityTimeConverted.substring(0, 10)), // activityHour in 'yyyyMMddHH' format
+        Integer.parseInt(activityTimeConverted.substring(10))     // firstObservedInHour in 'mm' format
     );
   }
 
