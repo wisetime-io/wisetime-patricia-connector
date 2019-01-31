@@ -4,14 +4,25 @@
 
 package io.wisetime.connector.patricia;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -44,6 +55,7 @@ import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
+import static io.wisetime.connector.utils.ActivityTimeCalculator.startTime;
 
 /**
  * WiseTime Connector implementation for Patricia.
@@ -53,6 +65,8 @@ import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
 public class PatriciaConnector implements WiseTimeConnector {
 
   private static final Logger log = LoggerFactory.getLogger(PatriciaConnector.class);
+  private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
 
@@ -148,30 +162,25 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     Optional<String> callerKeyOpt = callerKey();
     if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("Invalid caller key in post time webhook call");
+      return PostResult.PERMANENT_FAILURE.withMessage("Invalid caller key in post time webhook call");
     }
 
     if (userPostedTime.getTags().isEmpty()) {
-      return PostResult.SUCCESS
-          .withMessage("Time group has no tags. There is nothing to post to Patricia.");
+      return PostResult.SUCCESS.withMessage("Time group has no tags. There is nothing to post to Patricia.");
     }
 
     if (userPostedTime.getTimeRows().isEmpty()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("Cannot post time group with no time rows");
+      return PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows");
     }
 
     final Optional<String> workCode = getTimeGroupWorkCode(userPostedTime.getTimeRows());
     if (!workCode.isPresent()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("Time group contains invalid modifier.");
+      return PostResult.PERMANENT_FAILURE.withMessage("Time group contains invalid modifier.");
     }
 
     final Optional<String> user = patriciaDao.findLoginByEmail(userPostedTime.getUser().getExternalId());
     if (!user.isPresent()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
+      return PostResult.PERMANENT_FAILURE.withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
@@ -184,8 +193,12 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
     if (!hourlyRate.isPresent()) {
-      return PostResult.PERMANENT_FAILURE
-          .withMessage("No hourly rate is found for " + user.get());
+      return PostResult.PERMANENT_FAILURE.withMessage("No hourly rate is found for " + user.get());
+    }
+
+    final Optional<LocalDateTime> activityStartTime = startTime(userPostedTime);
+    if (!activityStartTime.isPresent()) {
+      return PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows");
     }
 
     final BigDecimal actualWorkedHoursPerCase =
@@ -200,8 +213,9 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
 
-    final String timeRegComment =  commentOverride.orElse(timeRegistrationTemplate.format(userPostedTime));
-    final String chargeComment = commentOverride.orElse(chargeTemplate.format(userPostedTime));
+    final TimeGroup timeGroupToFormat = convertToZone(userPostedTime, getTimeZoneId());
+    final String timeRegComment =  commentOverride.orElse(timeRegistrationTemplate.format(timeGroupToFormat));
+    final String chargeComment = commentOverride.orElse(chargeTemplate.format(timeGroupToFormat));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
         executeCreateTimeAndChargeRecord(ImmutableCreateTimeAndChargeParams.builder()
@@ -215,6 +229,7 @@ public class PatriciaConnector implements WiseTimeConnector {
             .actualHoursWithExpRating(actualWorkedHoursWithExpRatingPerCase)
             .chargeableHoursNoExpRating(chargeableHoursPerCase)
             .chargeableHoursWithExpRating(chargeableHoursWithExpRatingPerCase)
+            .recordalDate(activityStartTime.get())
             .build()
     );
 
@@ -320,7 +335,10 @@ public class PatriciaConnector implements WiseTimeConnector {
         .caseId(params.patriciaCase().caseId())
         .workCodeId(params.workCode())
         .userId(params.userId())
-        .recordalDate(dbDate)
+        .submissionDate(dbDate)
+        .activityDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
+            .withZoneSameInstant(getTimeZoneId())
+            .format(DATE_TIME_FORMATTER))
         .actualHours(params.actualHoursNoExpRating())
         .chargeableHours(params.chargeableHoursNoExpRating())
         .comment(params.timeRegComment())
@@ -336,7 +354,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .caseId(params.patriciaCase().caseId())
         .workCodeId(params.workCode())
         .userId(params.userId())
-        .recordalDate(dbDate)
+        .submissionDate(dbDate)
         .currency(currency)
         .hourlyRate(params.hourlyRate())
         .actualWorkTotalHours(params.actualHoursWithExpRating())
@@ -375,5 +393,64 @@ public class PatriciaConnector implements WiseTimeConnector {
     return new TemplateFormatter(TemplateFormatterConfig.builder()
         .withTemplatePath(getTemplatePath)
         .build());
+  }
+
+  private ZoneId getTimeZoneId() {
+    return ZoneId.of(RuntimeConfig.getString(PatriciaConnectorConfigKey.TIMEZONE).orElse("UTC"));
+  }
+
+  @VisibleForTesting
+  TimeGroup convertToZone(TimeGroup timeGroupUtc, ZoneId zoneId) {
+    try {
+      final String timeGroupUtcJson = OBJECT_MAPPER.writeValueAsString(timeGroupUtc);
+      final TimeGroup timeGroupCopy = OBJECT_MAPPER.readValue(timeGroupUtcJson, TimeGroup.class);
+      timeGroupCopy.getTimeRows()
+          .forEach(tr -> convertToZone(tr, zoneId));
+      return timeGroupCopy;
+    } catch (IOException ex) {
+      throw new RuntimeException("Failed to convert TimeGroup to zone " + zoneId, ex);
+    }
+  }
+
+  private void convertToZone(TimeRow timeRowUtc, ZoneId zoneId) {
+    final Pair<Integer, Integer> activityTimePair = convertToZone(
+        timeRowUtc.getActivityHour(), timeRowUtc.getFirstObservedInHour(), zoneId
+    );
+
+    timeRowUtc
+        .activityHour(activityTimePair.getLeft())
+        .firstObservedInHour(activityTimePair.getRight())
+        .setSubmittedDate(convertToZone(timeRowUtc.getSubmittedDate(), zoneId));
+  }
+
+  /**
+   * Returns a Pair of "activity hour" (left value) and "first observed in hour" (right value) converted
+   * in the specified zone ID.
+   */
+  private Pair<Integer, Integer> convertToZone(int activityHourUtc, int firstObservedInHourUtc, ZoneId toZoneId) {
+    final DateTimeFormatter activityTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
+    final String activityTimeUTC = activityHourUtc + StringUtils.leftPad(String.valueOf(firstObservedInHourUtc), 2, "0");
+    final String activityTimeConverted = ZonedDateTime
+        .of(LocalDateTime.parse(activityTimeUTC, activityTimeFormatter), ZoneOffset.UTC)
+        .withZoneSameInstant(toZoneId)
+        .format(activityTimeFormatter);
+
+    return Pair.of(
+        Integer.parseInt(activityTimeConverted.substring(0, 10)), // activityHour in 'yyyyMMddHH' format
+        Integer.parseInt(activityTimeConverted.substring(10))     // firstObservedInHour in 'mm' format
+    );
+  }
+
+  private Long convertToZone(long submittedDateUtc, ZoneId toZoneId) {
+    DateTimeFormatter submittedDateFormatter = new DateTimeFormatterBuilder()
+        .appendPattern("yyyyMMddHHmmss")
+        .appendValue(ChronoField.MILLI_OF_SECOND, 3)
+        .toFormatter();
+    final String submittedDateConverted = ZonedDateTime
+        .of(LocalDateTime.parse(String.valueOf(submittedDateUtc), submittedDateFormatter), ZoneOffset.UTC)
+        .withZoneSameInstant(toZoneId)
+        .format(submittedDateFormatter);
+
+    return Long.parseLong(submittedDateConverted);
   }
 }
