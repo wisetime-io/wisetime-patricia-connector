@@ -121,12 +121,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user,
-        ImmutableList.of(timeRow),
-        ImmutableList.of(tag),
-        1500,
-        TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS
-    );
+        user, ImmutableList.of(timeRow), Lists.newArrayList(tag)
+    )
+        .totalDurationSecs(1500)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -172,12 +171,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user,
-        ImmutableList.of(timeRow),
-        Lists.newArrayList(tag1, tag2),
-        300,
-        TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS
-    );
+        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
+    )
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -217,12 +215,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user,
-        ImmutableList.of(timeRow),
-        Lists.newArrayList(tag1, tag2),
-        300,
-        TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG
-    );
+        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
+    )
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -246,6 +243,38 @@ public class PatriciaConnectorPostTimeNarrativeTest {
   }
 
   @Test
+  void postTime_no_row_duration_narrative_only() {
+    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113);
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
+
+    final TimeGroup timeGroup = expectSuccessfulPostingTime(
+        user, ImmutableList.of(timeRow1, timeRow2), Lists.newArrayList(tag1, tag2)
+    )
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
+
+    assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResult.SUCCESS);
+
+    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
+    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    final String budgetLineComment = budgetLineCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineComment)
+        .as("should display narrative only")
+        .startsWith(timeGroup.getDescription())
+        .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
+        .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
+        .doesNotContain("Total worked time", "Total chargeable time")
+        .endsWith("\nExperience factor: 100%");
+  }
+
+  @Test
   void postTime_with_row_duration() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
@@ -258,12 +287,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user,
-        ImmutableList.of(timeRow),
-        ImmutableList.of(tag),
-        1500,
-        TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS
-    );
+        user, ImmutableList.of(timeRow), Lists.newArrayList(tag)
+    )
+        .totalDurationSecs(1500)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -309,12 +337,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user,
-        ImmutableList.of(timeRow),
-        Lists.newArrayList(tag1, tag2),
-        300,
-        TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS
-    );
+        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
+    )
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -354,12 +381,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user,
-        ImmutableList.of(timeRow),
-        Lists.newArrayList(tag1, tag2),
-        300,
-        TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG
-    );
+        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
+    )
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -382,18 +408,45 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .endsWith("\nExperience factor: 100%");
   }
 
+  @Test
+  void postTime_with_row_duration_narrative_only() {
+    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113);
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
+
+    final TimeGroup timeGroup = expectSuccessfulPostingTime(
+        user, ImmutableList.of(timeRow1, timeRow2), Lists.newArrayList(tag1, tag2)
+    )
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
+
+    assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResult.SUCCESS);
+
+    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
+    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    final String budgetLineComment = budgetLineCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineComment)
+        .as("should display narrative only")
+        .startsWith(timeGroup.getDescription())
+        .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
+        .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
+        .doesNotContain("Total worked time", "Total chargeable time")
+        .endsWith("\nExperience factor: 100%");
+  }
+
   private TimeGroup expectSuccessfulPostingTime(User user,
                                                 List<TimeRow> timeRows,
-                                                List<Tag> tags,
-                                                int timeGroupDuration,
-                                                TimeGroup.DurationSplitStrategyEnum splitStrategy) {
+                                                List<Tag> tags) {
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
         .tags(tags)
         .timeRows(timeRows)
-        .user(user)
-        .durationSplitStrategy(splitStrategy)
-        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS)
-        .totalDurationSecs(timeGroupDuration);
+        .user(user);
 
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
