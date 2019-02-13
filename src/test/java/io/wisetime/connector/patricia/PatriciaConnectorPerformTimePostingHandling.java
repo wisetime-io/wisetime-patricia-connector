@@ -256,7 +256,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  void postTime_with_explicit_narrative() {
+  void postTime() {
     final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
@@ -358,71 +358,6 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).comment())
         .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
         .isEqualTo("custom_comment");
-  }
-
-  @Test
-  void postTime_narrativeFromTemplateFormatter() {
-    final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
-        .modifier("")
-        .activityHour(2018110110)
-        .firstObservedInHour(2)
-        .durationSecs(1000)
-        .description(FAKER.superhero().descriptor());
-    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
-
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(tag))
-        .timeRows(ImmutableList.of(timeRow))
-        .user(user)
-        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
-        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS)
-        .totalDurationSecs(1500);
-
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
-
-    final Case patriciaCase = randomDataGenerator.randomCase(tag.getName());
-    when(patriciaDaoMock.findCaseByCaseNumber(anyString())).thenReturn(Optional.of(patriciaCase));
-
-    String userLogin = FAKER.internet().uuid();
-    String dbDate = LocalDateTime.now().toString();
-    String currency = FAKER.currency().code();
-    BigDecimal hourlyRate = BigDecimal.TEN;
-
-    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
-    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
-    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
-    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
-
-    assertThat(connector.postTime(fakeRequest(), timeGroup))
-        .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
-
-    // Verify Time Registration creation
-    ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDaoMock).addTimeRegistration(timeRegCaptor.capture());
-    assertThat(timeRegCaptor.getValue().comment())
-        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .startsWith(timeGroup.getDescription());
-    assertThat(timeRegCaptor.getValue().comment())
-        .as("should include time row details with start time converted in configured time zone")
-        .contains("18:02 - " + timeRow.getActivity() + " - " + timeRow.getDescription());
-
-    // Verify Budget Line creation
-    ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDaoMock).addBudgetLine(budgetLineCaptor.capture());
-    assertThat(budgetLineCaptor.getValue().comment())
-        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .startsWith(timeGroup.getDescription());
-    assertThat(budgetLineCaptor.getValue().comment())
-        .as("should include time row details with start time converted in configured time zone")
-        .contains("18:02 - " + timeRow.getActivity() + " - " + timeRow.getDescription());
-    assertThat(budgetLineCaptor.getValue().comment())
-        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
-        .contains("Total worked time: 16m 40s\n" +
-            "Total chargeable time: 25m\n" +
-            "Experience factor: 50%");
   }
 
   @Test

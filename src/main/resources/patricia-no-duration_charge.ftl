@@ -1,15 +1,19 @@
 <#if getDescription()?has_content>${getDescription()}</#if>
 <#if getNarrativeType() == "NARRATIVE_AND_TIME_ROW_ACTIVITY_DESCRIPTIONS">
-${'\n'}
+
 <#list getTimeRows() as timeRow>
-${(timeRow.getActivityHour()?c)?substring(8)}:${timeRow.getFirstObservedInHour()?left_pad(2, "0")} - ${timeRow.getActivity()} - ${timeRow.getDescription()}
+${(timeRow.getActivityHour() % 100)?string["00"]}:${timeRow.getFirstObservedInHour()?string["00"]} - ${timeRow.getActivity()} - ${timeRow.getDescription()}
 </#list>
 </#if>
-<#if getDescription()?has_content || getNarrativeType() == "NARRATIVE_AND_TIME_ROW_ACTIVITY_DESCRIPTIONS">
-${'\n'}
+
+<#if getDurationSplitStrategy() == "DIVIDE_BETWEEN_TAGS">
 Total worked time: ${getTotalDuration(getTimeRows())?string.@duration}
 Total chargeable time: ${getTotalDurationSecs()?string.@duration}
+</#if>
 Experience factor: ${getUser().getExperienceWeightingPercent()}%
+
+<#if getDurationSplitStrategy() == "DIVIDE_BETWEEN_TAGS" && (getTags()?size > 1)>
+The above times have been split across ${getTags()?size} cases and are thus greater than the chargeable time in this case
 </#if>
 
 <#function getTotalDuration timeRows>
