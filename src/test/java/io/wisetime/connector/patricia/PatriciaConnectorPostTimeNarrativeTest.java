@@ -235,19 +235,17 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .as("should include time row details with start time converted in configured time zone")
         .contains("17:04 - " + timeRow.getActivity() + " - " + timeRow.getDescription());
     assertThat(budgetLineComment)
-        .as("total worked and chargeable time should appear if split strategy is 'divide between tags'")
-        .doesNotContain("Total worked time", "Total chargeable time");
-    assertThat(budgetLineComment)
-        .as("total worked and chargeable time should appear if split strategy is 'divide between tags'")
-        .endsWith("\nExperience factor: 100%");
+        .endsWith("Total worked time: 2m\n" +
+            "Total chargeable time: 5m\n" +
+            "Experience factor: 100%");
   }
 
   @Test
   void postTime_no_row_duration_narrative_only() {
     final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113);
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113).durationSecs(240);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113).durationSecs(120);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
@@ -270,8 +268,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
         .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
-        .doesNotContain("Total worked time", "Total chargeable time")
-        .endsWith("\nExperience factor: 100%");
+        .endsWith("Total worked time: 6m\n" +
+            "Total chargeable time: 5m\n" +
+            "Experience factor: 100%");
   }
 
   @Test
@@ -401,19 +400,17 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .as("should include time row details with start time converted in configured time zone")
         .contains("21:07 hrs - [2m] - " + timeRow.getActivity() + " - " + timeRow.getDescription());
     assertThat(budgetLineComment)
-        .as("total worked and chargeable time should appear if split strategy is 'divide between tags'")
-        .doesNotContain("Total worked time", "Total chargeable time");
-    assertThat(budgetLineComment)
-        .as("total worked and chargeable time should appear if split strategy is 'divide between tags'")
-        .endsWith("\nExperience factor: 100%");
+        .endsWith("Total worked time: 2m\n" +
+            "Total chargeable time: 5m\n" +
+            "Experience factor: 100%");
   }
 
   @Test
   void postTime_with_row_duration_narrative_only() {
     final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113);
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113).durationSecs(360);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113).durationSecs(360);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
@@ -436,8 +433,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
         .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
-        .doesNotContain("Total worked time", "Total chargeable time")
-        .endsWith("\nExperience factor: 100%");
+        .endsWith("Total worked time: 12m\n" +
+            "Total chargeable time: 5m\n" +
+            "Experience factor: 100%");
   }
 
   private TimeGroup expectSuccessfulPostingTime(User user,
