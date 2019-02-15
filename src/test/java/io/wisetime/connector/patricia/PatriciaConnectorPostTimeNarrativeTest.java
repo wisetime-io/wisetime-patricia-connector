@@ -5,7 +5,6 @@
 package io.wisetime.connector.patricia;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.inject.Guice;
 
 import com.github.javafaker.Faker;
@@ -18,7 +17,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import io.wisetime.connector.api_client.ApiClient;
@@ -120,12 +118,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow), Lists.newArrayList(tag)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
         .totalDurationSecs(1500)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -159,8 +159,6 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void postTime_no_duration_divide_between_tags() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .modifier("")
         .activityHour(2019060409)
@@ -170,12 +168,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
         .totalDurationSecs(300)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -203,8 +203,6 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void postTime_no_duration_whole_duration_for_each_tag() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .modifier("")
         .activityHour(2019060409)
@@ -214,12 +212,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
         .totalDurationSecs(300)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -242,19 +242,19 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void postTime_no_row_duration_narrative_only() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113).durationSecs(240);
     final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2016050113).durationSecs(120);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow1, timeRow2), Lists.newArrayList(tag1, tag2)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
         .totalDurationSecs(300)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
         .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorNoRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -262,8 +262,8 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
     ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
     verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
-    final String budgetLineComment = budgetLineCaptor.getAllValues().get(0).comment();
-    assertThat(budgetLineComment)
+    final String budgetLineCommentForCase1 = budgetLineCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineCommentForCase1)
         .as("should display narrative only")
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
@@ -271,11 +271,13 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .endsWith("Total worked time: 6m\n" +
             "Total chargeable time: 5m\n" +
             "Experience factor: 100%");
+    assertThat(budgetLineCommentForCase1)
+        .as("comment for the other case should be the same")
+        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
   }
 
   @Test
   void postTime_with_row_duration() {
-    final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .modifier("")
         .activityHour(2019031815)
@@ -285,12 +287,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow), Lists.newArrayList(tag)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
         .totalDurationSecs(1500)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -324,8 +328,6 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void postTime_with_row_duration_divide_between_tags() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .modifier("")
         .activityHour(2019060409)
@@ -335,12 +337,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
         .totalDurationSecs(300)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -368,8 +372,6 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void postTime_with_row_duration_whole_duration_for_each_tag() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .modifier("")
         .activityHour(2016050113)
@@ -379,12 +381,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow), Lists.newArrayList(tag1, tag2)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
         .totalDurationSecs(300)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -407,19 +411,19 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void postTime_with_row_duration_narrative_only() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113).durationSecs(360);
     final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113).durationSecs(360);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
-    final TimeGroup timeGroup = expectSuccessfulPostingTime(
-        user, ImmutableList.of(timeRow1, timeRow2), Lists.newArrayList(tag1, tag2)
-    )
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
         .totalDurationSecs(300)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
         .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
 
     assertThat(connectorWithRowDuration.postTime(mock(Request.class), timeGroup))
         .as("Valid time group should be posted successfully")
@@ -427,8 +431,8 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
     ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
     verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
-    final String budgetLineComment = budgetLineCaptor.getAllValues().get(0).comment();
-    assertThat(budgetLineComment)
+    final String budgetLineCommentForCase1 = budgetLineCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineCommentForCase1)
         .as("should display narrative only")
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
@@ -436,19 +440,15 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .endsWith("Total worked time: 12m\n" +
             "Total chargeable time: 5m\n" +
             "Experience factor: 100%");
+    assertThat(budgetLineCommentForCase1)
+        .as("comment for the other case should be the same")
+        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
   }
 
-  private TimeGroup expectSuccessfulPostingTime(User user,
-                                                List<TimeRow> timeRows,
-                                                List<Tag> tags) {
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(tags)
-        .timeRows(timeRows)
-        .user(user);
-
+  private void setPrerequisitesForSuccessfulPostTime(TimeGroup timeGroup) {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
-    tags.forEach(tag -> when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
+    timeGroup.getTags().forEach(tag -> when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
         .thenReturn(Optional.of(randomDataGenerator.randomCase(tag.getName()))));
 
     String userLogin = FAKER.internet().uuid();
@@ -460,6 +460,5 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
     when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
     when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
-    return timeGroup;
   }
 }
