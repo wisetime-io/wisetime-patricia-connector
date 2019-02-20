@@ -89,8 +89,10 @@ public class PatriciaConnector implements WiseTimeConnector {
     initializeModifiers();
     initializeRoleTypeId();
 
-    this.timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-template_time-registration.ftl");
-    this.chargeTemplate = createTemplateFormatter("classpath:patricia-template_charge.ftl");
+    this.timeRegistrationTemplate = createTemplateFormatter(
+        "classpath:narrative-template/patricia-template_time-registration.ftl");
+    this.chargeTemplate = createTemplateFormatter(
+        "classpath:narrative-template/patricia-template_charge.ftl");
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
