@@ -88,7 +88,9 @@ public class PatriciaConnector implements WiseTimeConnector {
         "Patricia Database schema is unsupported by this connector");
     initializeModifiers();
     initializeRoleTypeId();
-    initializeTemplateFormatters();
+
+    this.timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-template_time-registration.ftl");
+    this.chargeTemplate = createTemplateFormatter("classpath:patricia-template_charge.ftl");
 
     this.apiClient = connectorModule.getApiClient();
     this.connectorStore = connectorModule.getConnectorStore();
@@ -372,21 +374,6 @@ public class PatriciaConnector implements WiseTimeConnector {
     patriciaDao.addBudgetLine(budgetLine);
 
     log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
-  }
-
-  private void initializeTemplateFormatters() {
-    boolean includeTimeDuration =
-        RuntimeConfig.getString(ConnectorLauncher.PatriciaConnectorConfigKey.INCLUDE_DURATIONS_IN_INVOICE_COMMENT)
-            .map(Boolean::parseBoolean)
-            .orElse(false);
-
-    if (includeTimeDuration) {
-      timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-with-duration_time-registration.ftl");
-      chargeTemplate = createTemplateFormatter("classpath:patricia-with-duration_charge.ftl");
-    } else {
-      timeRegistrationTemplate = createTemplateFormatter("classpath:patricia-no-duration_time-registration.ftl");
-      chargeTemplate = createTemplateFormatter("classpath:patricia-no-duration_charge.ftl");
-    }
   }
 
   private TemplateFormatter createTemplateFormatter(String getTemplatePath) {
