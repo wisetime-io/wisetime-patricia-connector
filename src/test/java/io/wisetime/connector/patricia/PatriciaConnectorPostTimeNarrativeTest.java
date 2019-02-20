@@ -255,6 +255,66 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
   }
 
+  @Test
+  void sanitize_app_name_and_window_title() {
+    final TimeRow nullWindowTitle = FAKE_ENTITIES.randomTimeRow()
+        .activity("@_Thinking_@").description(null).modifier("").activityHour(2018110109).durationSecs(120);
+    final TimeRow emptyWindowTitle = FAKE_ENTITIES.randomTimeRow()
+        .activity("@_Videocall_@").description("@_empty_@").modifier("").activityHour(2018110109).durationSecs(181);
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(nullWindowTitle, emptyWindowTitle))
+        .user(user)
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+
+    assertThat(connector.postTime(mock(Request.class), timeGroup))
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResult.SUCCESS);
+
+    // Verify Time Registration creation
+    ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    assertThat(timeRegCaptor.getAllValues().get(0).comment())
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(timeRegCaptor.getValue().comment())
+        .as("should sanitize manual time and blank window title")
+        .contains(
+            "\n\r\n17:00 - 17:59" +
+            "\n- 2m - Thinking - No window title available" +
+            "\n- 3m 1s - Videocall - No window title available");
+    assertThat(timeRegCaptor.getAllValues().get(0).comment())
+        .as("narrative for all tags should be the same for time registration.")
+        .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
+
+    // Verify Budget Line creation
+    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
+    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    final String budgetLineComment = budgetLineCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineComment)
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(budgetLineComment)
+        .as("should sanitize manual time and blank window title")
+        .contains(
+            "\n\r\n17:00 - 17:59" +
+            "\n- 2m - Thinking - No window title available" +
+            "\n- 3m 1s - Videocall - No window title available"
+        )
+        .endsWith("\nTotal Worked Time: 5m 1s\n" +
+            "Total Chargeable Time: 5m\n" +
+            "Experience Weighting: 100%");
+    assertThat(budgetLineCaptor.getAllValues().get(0).comment())
+        .as("narrative for all tags should be the same for budget line.")
+        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
+  }
+
   private void setPrerequisitesForSuccessfulPostTime(TimeGroup timeGroup) {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
