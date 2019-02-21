@@ -70,6 +70,7 @@ public class FakeEntities {
   public TimeRow randomTimeRow() {
     return new TimeRow()
         .activity(FAKER.lorem().characters(30, 100))
+        .description(FAKER.superhero().descriptor())
         .activityHour(2018110100 + FAKER.random().nextInt(1, 23))
         .firstObservedInHour(Integer.valueOf(FAKER.numerify("2#")))
         .durationSecs(FAKER.random().nextInt(120, 600))
