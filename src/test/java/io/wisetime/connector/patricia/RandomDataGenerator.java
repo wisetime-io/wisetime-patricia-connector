@@ -10,12 +10,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
-
-import io.wisetime.generated.connect.Tag;
-import io.wisetime.generated.connect.TimeGroup;
-import io.wisetime.generated.connect.TimeRow;
-import io.wisetime.generated.connect.User;
 
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 
@@ -43,49 +37,6 @@ public class RandomDataGenerator {
 
   public List<Case> randomCase(int count) {
     return randomEntities(this::randomCase, count, count);
-  }
-
-  public TimeGroup randomTimeGroup() {
-    TimeGroup timeGroup = new TimeGroup();
-    timeGroup.setCallerKey(FAKER.crypto().md5());
-    timeGroup.setTags(randomTagList());
-    timeGroup.setTimeRows(randomTimeRowList());
-    timeGroup.setUser(randomUser());
-    timeGroup.setTotalDurationSecs(FAKER.random().nextInt(0, 10_000));
-    timeGroup.setDurationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS);
-    return timeGroup;
-  }
-
-  private List<Tag> randomTagList() {
-    return Stream.generate(this::randomTag)
-        .limit(FAKER.number().numberBetween(2, 10))
-        .collect(Collectors.toList());
-  }
-
-  public Tag randomTag() {
-    Tag tag = new Tag();
-    tag.setName(FAKER.name().name());
-    return tag;
-  }
-
-  private List<TimeRow> randomTimeRowList() {
-    return Stream.generate(this::randomTimeRow)
-        .limit(FAKER.number().numberBetween(2, 10))
-        .collect(Collectors.toList());
-  }
-
-  private TimeRow randomTimeRow() {
-    TimeRow timeRow = new TimeRow();
-    timeRow.setDurationSecs(FAKER.number().numberBetween(60, 600));
-    return timeRow;
-  }
-
-  public User randomUser() {
-    User user = new User();
-    user.setExternalId(FAKER.crypto().md5());
-    user.setExperienceWeightingPercent(FAKER.number().numberBetween(0, 100));
-    user.setEmail(FAKER.internet().emailAddress());
-    return user;
   }
 
   private <T> List<T> randomEntities(final Supplier<T> supplier, final int min, final int max) {
