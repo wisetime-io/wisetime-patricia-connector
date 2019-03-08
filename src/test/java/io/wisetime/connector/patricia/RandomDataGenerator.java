@@ -80,7 +80,7 @@ public class RandomDataGenerator {
     return timeRow;
   }
 
-  private User randomUser() {
+  public User randomUser() {
     User user = new User();
     user.setExternalId(FAKER.crypto().md5());
     user.setExperienceWeightingPercent(FAKER.number().numberBetween(0, 100));

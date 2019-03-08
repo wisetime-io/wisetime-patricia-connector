@@ -148,9 +148,15 @@ public class PatriciaDao {
         .listResult(this::mapToCase);
   }
 
-  Optional<String> findLoginByEmail(final String email) {
+  Optional<String> findUserByEmail(final String email) {
     return query().select("SELECT login_id FROM person WHERE LOWER(email) = ?")
         .params(email.toLowerCase())
+        .firstResult(Mappers.singleString());
+  }
+
+  Optional<String> findUserByLoginId(final String loginId) {
+    return query().select("SELECT login_id FROM person WHERE LOWER(login_id) = ?")
+        .params(loginId.toLowerCase())
         .firstResult(Mappers.singleString());
   }
 

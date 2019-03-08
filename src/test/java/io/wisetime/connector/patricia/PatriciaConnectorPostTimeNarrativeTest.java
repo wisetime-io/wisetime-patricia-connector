@@ -326,7 +326,7 @@ public class PatriciaConnectorPostTimeNarrativeTest {
     String currency = FAKER.currency().code();
     BigDecimal hourlyRate = BigDecimal.TEN;
 
-    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
     when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
     when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));

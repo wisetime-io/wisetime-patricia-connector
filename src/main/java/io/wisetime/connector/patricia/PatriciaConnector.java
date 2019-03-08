@@ -48,6 +48,7 @@ import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.UpsertTagRequest;
+import io.wisetime.generated.connect.User;
 import spark.Request;
 
 import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
@@ -182,7 +183,7 @@ public class PatriciaConnector implements WiseTimeConnector {
       return PostResult.PERMANENT_FAILURE.withMessage("Time group contains invalid modifier.");
     }
 
-    final Optional<String> user = patriciaDao.findLoginByEmail(userPostedTime.getUser().getExternalId());
+    final Optional<String> user = getPatriciaUser(userPostedTime.getUser());
     if (!user.isPresent()) {
       return PostResult.PERMANENT_FAILURE.withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
@@ -441,5 +442,25 @@ public class PatriciaConnector implements WiseTimeConnector {
         .format(submittedDateFormatter);
 
     return Long.parseLong(submittedDateConverted);
+  }
+
+  private Optional<String> getPatriciaUser(User user) {
+    Optional<String> patriciaUser;
+
+    if (StringUtils.isNotBlank(user.getExternalId())) {
+      // Check if the External ID is the user's Login ID/Username in Patricia
+      patriciaUser = patriciaDao.findUserByLoginId(user.getExternalId());
+
+      // if External ID is not the Login ID but it looks like an email, try to find a user with that email
+      if (!patriciaUser.isPresent() && user.getExternalId().split("@").length == 2) {
+        patriciaUser = patriciaDao.findUserByEmail(user.getExternalId());
+      }
+
+    } else {
+      // If user has no defined External ID, use his/her email to check for a Patricia user
+      patriciaUser = patriciaDao.findUserByEmail(user.getEmail());
+    }
+
+    return patriciaUser;
   }
 }

@@ -150,17 +150,32 @@ class PatriciaDaoTest {
   }
 
   @Test
-  void findLoginByEmail() {
+  void findUserByEmail() {
     savePerson("foobar", "foobar@baz.com", FAKER.number().randomNumber());
 
-    assertThat(patriciaDao.findLoginByEmail("foobar@baz.com"))
+    assertThat(patriciaDao.findUserByEmail("foobar@baz.com"))
         .as("Username should be returned if it exists in DB.")
         .contains("foobar");
-    assertThat(patriciaDao.findLoginByEmail("Foobar@baz.com"))
+    assertThat(patriciaDao.findUserByEmail("Foobar@baz.com"))
         .as("Email should not be case sensitive")
         .contains("foobar");
-    assertThat(patriciaDao.findLoginByEmail("foo.bar@baz.com"))
+    assertThat(patriciaDao.findUserByEmail("foo.bar@baz.com"))
         .as("Should return empty if email is not found in DB")
+        .isEmpty();
+  }
+
+  @Test
+  void findUserByLoginId() {
+    savePerson("foobar", "foobar@baz.com", FAKER.number().randomNumber());
+
+    assertThat(patriciaDao.findUserByLoginId("foobar"))
+        .as("Login ID should be returned if it exists in DB.")
+        .contains("foobar");
+    assertThat(patriciaDao.findUserByLoginId("FOOBAR"))
+        .as("Login ID should not be case sensitive")
+        .contains("foobar");
+    assertThat(patriciaDao.findUserByLoginId("foo.bar"))
+        .as("Should return empty if login ID is not found in DB")
         .isEmpty();
   }
 
