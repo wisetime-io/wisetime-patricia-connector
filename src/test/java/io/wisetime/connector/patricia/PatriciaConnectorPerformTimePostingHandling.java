@@ -61,6 +61,9 @@ class PatriciaConnectorPerformTimePostingHandling {
   private static final Faker FAKER = new Faker();
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
 
+  private static final String DEFAULT_MODIFIER = "defaultModifier";
+  private static final String ANOTHER_MODIFIER = "otherModifier";
+
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
   private static PatriciaDao patriciaDaoMock = mock(PatriciaDao.class);
   private static ApiClient apiClientMock = mock(ApiClient.class);
@@ -70,9 +73,10 @@ class PatriciaConnectorPerformTimePostingHandling {
   @BeforeAll
   static void setUp() {
     RuntimeConfig.rebuild();
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "defaultModifier");
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, DEFAULT_MODIFIER);
     RuntimeConfig.setProperty(
-        ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "defaultModifier:DM, modifier2:M2"
+        ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING,
+        String.format("%s:DM, %s:OM", DEFAULT_MODIFIER, ANOTHER_MODIFIER)
     );
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
 
@@ -92,6 +96,8 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @BeforeEach
   void setUpTest() {
+    RuntimeConfig.clearProperty(ConnectorConfigKey.CALLER_KEY);
+
     reset(patriciaDaoMock);
     reset(apiClientMock);
     reset(connectorStoreMock);
@@ -111,7 +117,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_wrongCallerId() {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, FAKER.lorem().word());
-    assertThat(connector.postTime(fakeRequest(), randomDataGenerator.randomTimeGroup()))
+    assertThat(connector.postTime(fakeRequest(), FAKE_ENTITIES.randomTimeGroup()))
         .as("caller id not matched")
         .isEqualTo(PostResult.PERMANENT_FAILURE.withMessage("Invalid caller key in post time webhook call"));
 
@@ -120,7 +126,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_noTags() {
-    TimeGroup timeGroup = randomDataGenerator.randomTimeGroup();
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTags(Collections.emptyList());
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
@@ -133,7 +139,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_noTimeRows() {
-    TimeGroup timeGroup = randomDataGenerator.randomTimeGroup();
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTimeRows(Collections.emptyList());
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
@@ -144,26 +150,75 @@ class PatriciaConnectorPerformTimePostingHandling {
     verifyZeroInteractions(patriciaDaoMock);
   }
 
+  @Test
+  void postTime_externalIdNotEmail_cantFindUser() {
+    final String externalId = "i.am.login.id";
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+        .user(FAKE_ENTITIES.randomUser()
+            .externalId(externalId));
+
+    when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(false);
+
+    PostResult result = connector.postTime(fakeRequest(), timeGroup);
+    assertThat(result)
+        .as("Can't post time because external id is not a valid Patricia login ID")
+        .isEqualTo(PostResult.PERMANENT_FAILURE);
+    assertThat(result.getMessage())
+        .as("should be the correct error message for invalid user")
+        .contains("User does not exist: " + timeGroup.getUser().getExternalId());
+
+    verify(patriciaDaoMock, never()).findLoginIdByEmail(anyString());
+    verifyPatriciaNotUpdated();
+  }
 
   @Test
-  void postTime_userNotFound() {
-    TimeGroup timeGroup = randomDataGenerator.randomTimeGroup();
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
+  void postTime_externalIdAsEmail_cantFindUser() {
+    final String externalId = "this-looks@like.email";
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+        .user(FAKE_ENTITIES.randomUser()
+            .externalId(externalId));
 
-    assertThat(connector.postTime(fakeRequest(), timeGroup))
-        .as("no time rows in time group")
-        .isEqualTo(PostResult.PERMANENT_FAILURE.withMessage("User does not exist: " + timeGroup.getUser().getExternalId()));
+    when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(false);
+    when(patriciaDaoMock.findLoginIdByEmail(externalId)).thenReturn(Optional.empty());
+
+    PostResult result = connector.postTime(fakeRequest(), timeGroup);
+    assertThat(result)
+        .as("Can't post time because external id is not a valid Patricia login ID or email")
+        .isEqualTo(PostResult.PERMANENT_FAILURE);
+    assertThat(result.getMessage())
+        .as("should be the correct error message for invalid user")
+        .contains("User does not exist: " + timeGroup.getUser().getExternalId());
 
     verifyPatriciaNotUpdated();
   }
 
   @Test
+  void postTime_noExternalId_cantFindUserByUserEmail() {
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+        .user(FAKE_ENTITIES.randomUser()
+            .externalId(null)); // we should only check on email if external id is not set
+
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getEmail())).thenReturn(Optional.empty());
+
+    PostResult result = connector.postTime(fakeRequest(), timeGroup);
+    assertThat(result)
+        .as("Can't post time because no user has this email in Patricia")
+        .isEqualTo(PostResult.PERMANENT_FAILURE);
+    assertThat(result.getMessage())
+        .as("should be the correct error message for invalid user")
+        .contains("User does not exist: " + timeGroup.getUser().getExternalId());
+
+    verify(patriciaDaoMock, never()).loginIdExists(anyString());
+    verifyPatriciaNotUpdated();
+  }
+
+  @Test
   void postTime_noHourlyRate() {
-    TimeGroup timeGroup = randomDataGenerator.randomTimeGroup();
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER);
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
-    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .as("failed to load database date")
@@ -190,7 +245,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
-    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
     when(patriciaDaoMock.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(randomDataGenerator.randomCase()));
 
@@ -220,7 +275,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
-    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
     when(patriciaDaoMock.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(patriciaCase));
     when(patriciaDaoMock.getDbDate()).thenReturn(LocalDateTime.now().toString());
@@ -235,8 +290,8 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_multiple_modifier() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("defaultModifier").activityHour(2018110110);
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("modifier2").activityHour(2018110110);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier(DEFAULT_MODIFIER).activityHour(2018110110);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier(ANOTHER_MODIFIER).activityHour(2018110110);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -291,7 +346,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     String currency = FAKER.currency().code();
     BigDecimal hourlyRate = BigDecimal.TEN;
 
-    when(patriciaDaoMock.findLoginByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
     when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
     when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
@@ -403,6 +458,83 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(convertedTimeGroup.getTimeRows().get(0).getDescription()).isEqualTo(timeRow.getDescription());
     assertThat(convertedTimeGroup.getTimeRows().get(0).getDurationSecs()).isEqualTo(timeRow.getDurationSecs());
     assertThat(convertedTimeGroup.getTimeRows().get(0).getModifier()).isEqualTo(timeRow.getModifier());
+  }
+
+  @Test
+  void postTime_should_use_external_id_as_username() {
+    final String externalId = "i.am.login.id";
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+        .user(FAKE_ENTITIES.randomUser().externalId(externalId));
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+    when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(true);
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup))
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResult.SUCCESS);
+
+    final ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
+    verify(patriciaDaoMock, times(timeGroup.getTags().size())).addTimeRegistration(timeRegCaptor.capture());
+    assertThat(timeRegCaptor.getValue().userId())
+        .as("should use the external id as login id")
+        .isEqualTo(externalId);
+
+    verify(patriciaDaoMock, never()).findLoginIdByEmail(any());
+  }
+
+  @Test
+  void postTime_should_use_external_id_as_email() {
+    final String externalId = "this-looks@like.email";
+    final String loginId = "i.am.login.id";
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+        .user(FAKE_ENTITIES.randomUser().externalId(externalId));
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+
+    when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(false);
+    when(patriciaDaoMock.findLoginIdByEmail(externalId)).thenReturn(Optional.of(loginId));
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup))
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResult.SUCCESS);
+
+    final ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
+    verify(patriciaDaoMock, times(timeGroup.getTags().size())).addTimeRegistration(timeRegCaptor.capture());
+    assertThat(timeRegCaptor.getValue().userId())
+        .as("should look for Patricia user with email as the external id " +
+            "if latter is not a Patricia login ID but looks like an email.")
+        .isEqualTo(loginId);
+  }
+
+  @Test
+  void postTime_should_use_email_for_getting_user() {
+    final String patLoginId = "valid-patricia-login-id";
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+        .user(FAKE_ENTITIES.randomUser().externalId(null)); // set external id to enable email check
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getEmail())).thenReturn(Optional.of(patLoginId));
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup))
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResult.SUCCESS);
+
+    final ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
+    verify(patriciaDaoMock, times(timeGroup.getTags().size())).addTimeRegistration(timeRegCaptor.capture());
+    assertThat(timeRegCaptor.getValue().userId())
+        .as("should user email to look for Patricia user if external id is not set.")
+        .isEqualTo(patLoginId);
+
+    verify(patriciaDaoMock, never()).loginIdExists(anyString());
+  }
+
+  private void setPrerequisitesForSuccessfulPostTime(TimeGroup timeGroup) {
+    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
+
+    timeGroup.getTags().forEach(tag -> when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
+        .thenReturn(Optional.of(randomDataGenerator.randomCase(tag.getName()))));
+
+    when(patriciaDaoMock.findUserHourlyRate(any(), anyString()))
+        .thenReturn(Optional.of(new BigDecimal(FAKER.number().numberBetween(10, 99))));
+    when(patriciaDaoMock.getDbDate()).thenReturn(LocalDateTime.now().toString());
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(FAKER.currency().code()));
   }
 
   private void verifyPatriciaNotUpdated() {

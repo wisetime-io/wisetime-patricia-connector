@@ -148,10 +148,17 @@ public class PatriciaDao {
         .listResult(this::mapToCase);
   }
 
-  Optional<String> findLoginByEmail(final String email) {
+  Optional<String> findLoginIdByEmail(final String email) {
     return query().select("SELECT login_id FROM person WHERE LOWER(email) = ?")
         .params(email.toLowerCase())
         .firstResult(Mappers.singleString());
+  }
+
+  boolean loginIdExists(final String loginId) {
+    return query().select("SELECT 1 FROM person WHERE LOWER(login_id) = ?") // Patricia login id is not case sensitive
+        .params(loginId.toLowerCase())
+        .firstResult(Mappers.singleInteger())
+        .isPresent();
   }
 
   Optional<String> findCurrency(final long caseId, final int roleTypeId) {
