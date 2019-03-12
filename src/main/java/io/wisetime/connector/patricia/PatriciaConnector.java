@@ -183,7 +183,7 @@ public class PatriciaConnector implements WiseTimeConnector {
       return PostResult.PERMANENT_FAILURE.withMessage("Time group contains invalid modifier.");
     }
 
-    final Optional<String> user = getPatriciaUser(userPostedTime.getUser());
+    final Optional<String> user = getPatriciaLoginId(userPostedTime.getUser());
     if (!user.isPresent()) {
       return PostResult.PERMANENT_FAILURE.withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
@@ -444,23 +444,23 @@ public class PatriciaConnector implements WiseTimeConnector {
     return Long.parseLong(submittedDateConverted);
   }
 
-  private Optional<String> getPatriciaUser(User user) {
-    Optional<String> patriciaUser;
+  private Optional<String> getPatriciaLoginId(User user) {
 
     if (StringUtils.isNotBlank(user.getExternalId())) {
-      // Check if the External ID is the user's Login ID/Username in Patricia
-      patriciaUser = patriciaDao.findUserByLoginId(user.getExternalId());
+      if (patriciaDao.loginIdExists(user.getExternalId())) {
+        // return External ID if it's the user's Login ID/Username in Patricia
+        return Optional.of(user.getExternalId());
 
-      // if External ID is not the Login ID but it looks like an email, try to find a user with that email
-      if (!patriciaUser.isPresent() && user.getExternalId().split("@").length == 2) {
-        patriciaUser = patriciaDao.findUserByEmail(user.getExternalId());
+      } else if (user.getExternalId().split("@").length == 2) {
+        // if External ID is not the Login ID but it looks like an email, try to find a user with that email
+        return patriciaDao.findLoginIdByEmail(user.getExternalId());
       }
 
     } else {
       // If user has no defined External ID, use his/her email to check for a Patricia user
-      patriciaUser = patriciaDao.findUserByEmail(user.getEmail());
+      return patriciaDao.findLoginIdByEmail(user.getEmail());
     }
 
-    return patriciaUser;
+    return Optional.empty();
   }
 }
