@@ -162,7 +162,9 @@ public class PatriciaConnector implements WiseTimeConnector {
   @Override
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
     log.info("Posted time received for {}: {}",
-        userPostedTime.getUser().getExternalId(),
+        StringUtils.isNotBlank(userPostedTime.getUser().getExternalId())
+            ? userPostedTime.getUser().getExternalId()
+            : userPostedTime.getUser().getEmail(),
         Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
 
     Optional<String> callerKeyOpt = callerKey();
