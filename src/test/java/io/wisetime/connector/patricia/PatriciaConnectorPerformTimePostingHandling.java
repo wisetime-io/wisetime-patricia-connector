@@ -259,7 +259,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_unable_to_get_currency() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110).firstObservedInHour(0);
     timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
@@ -316,9 +316,11 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
 
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121).modifier("").durationSecs(600);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121).modifier("").durationSecs(600)
+        .firstObservedInHour(0);
     timeRow1.setDescription(FAKER.lorem().characters());
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110122).modifier("").durationSecs(300);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110122).modifier("").durationSecs(300)
+        .firstObservedInHour(0);
     timeRow2.setDescription(FAKER.lorem().characters());
 
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
