@@ -114,10 +114,10 @@ public class PatriciaConnector implements WiseTimeConnector {
   @Override
   public void performTagUpdate() {
     while (true) {
-      final Optional<Long> storedLastSyncedCaseId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY);
+      final long storedLastSyncedCaseId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY).orElse(0L);
 
       final List<Case> newCases = patriciaDao.findCasesOrderById(
-          storedLastSyncedCaseId.orElse(0L),
+          storedLastSyncedCaseId,
           tagUpsertBatchSize()
       );
 
