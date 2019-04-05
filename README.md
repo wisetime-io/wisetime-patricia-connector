@@ -58,7 +58,7 @@ docker run -d \
     -e PATRICIA_JDBC_PASSWORD=YourPatriciaDbPassword \
     -e PATRICIA_ROLE_TYPE_ID=YourPatriciaRoleTypeId \
     -e TAG_MODIFIER_WORK_CODE_MAPPING=modifier_name_1:work_code_id_1,modifier_name_1:work_code_id_2 \
-    -e DEFAULT_WORK_CODE_NAME=modifier_name_1 \
+    -e DEFAULT_MODIFIER=modifier_name_1 \
     wisetime/patricia-connector
 ```
 
