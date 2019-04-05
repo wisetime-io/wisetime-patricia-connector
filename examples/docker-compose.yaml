@@ -1,0 +1,67 @@
+# Copyright (c) 2019 Practice Insight Pty Ltd. All rights reserved.
+#
+# Docker Compose manifest for running WiseTime Patricia Connector.
+#
+# To start the WiseTime Connector, run the following command in the same directory as
+# this docker-compose.yaml file:
+#
+#   docker-compose -p wisetime-patricia-connector up -d
+#
+# To stop the WiseTime Connector, run the following command in the same directory:
+#
+#   docker-compose down
+#
+# This docker-compose.yaml file creates a local volume for persistence. To list the
+# volume:
+#
+#   docker volume ls
+#
+version: "3"
+services:
+  wisetime-patricia-connector:
+    labels:
+      description: WiseTime Patricia Connector
+    image: wisetime/patricia-connector:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      API_KEY: YOUR_WISETIME_CONNECT_API_KEY
+      CALLER_KEY: PICK_A_SECRET
+
+	  # define appropriate timezone
+      TIMEZONE: Australia/Perth
+
+      TAG_UPSERT_PATH: /Patricia/
+      TAG_UPSERT_BATCH_SIZE: 500
+	  
+	  # uncomment if default webhook port should be changed (also change docker ports definition above correspondingly!)
+	  # WEBHOOK_PORT: 8080
+
+	  # define tag modifiers based on patricia work codes - time posted with a selected tag modifier will be posted with the corresponding work code
+      TAG_MODIFIER_WORK_CODE_MAPPING: "A1:101,B2:102,C3:103"
+      DEFAULT_MODIFIER: A1
+	  
+	  # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
+	  PATRICIA_ROLE_TYPE_ID: <role_type_id>
+	  
+	  # optional - uncomment if needed
+	  # INVOICE_COMMENT_OVERRIDE: "Time based charge determined by WiseTime"
+
+      PATRICIA_JDBC_URL: "jdbc:sqlserver://HOST:PORT;databaseName=DATABASE_NAME;ssl=request;useCursors=true"
+      PATRICIA_JDBC_USERNAME: USERNAME
+      PATRICIA_JDBC_PASSWORD: PASSWORD
+
+      # AWS CloudWatch logging
+      AWS_ACCESS_KEY_ID: YOUR_AWS_ACCESS_KEY
+      AWS_SECRET_ACCESS_KEY: YOUR_AWS_SECRET_ACCESS_KEY
+      AWS_REGION: ap-southeast-1
+
+      # Local cache for keeping track of cases and projects that have been synced
+      DATA_DIR: /usr/local/wisetime-connector/data/
+
+    volumes:
+      - data:/usr/local/wisetime-connector/data/
+volumes:
+  data:
+    driver: local
