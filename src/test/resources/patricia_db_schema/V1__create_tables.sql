@@ -100,3 +100,13 @@ CREATE TABLE BUDGET_LINE (
 	CURRENCY_ID nvarchar(3) NULL,
 	EXCHANGE_RATE numeric(10, 6) NULL
 );
+
+-- Added on April 16th 2019
+create table WORK_CODE
+(
+	WORK_CODE_ID nvarchar(10) not null
+		constraint PK_WORK_CODE
+			primary key,
+	WORK_CODE_DEFAULT_AMOUNT numeric(10,2),
+	REPLACE_AMOUNT int
+);
