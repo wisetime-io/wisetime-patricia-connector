@@ -97,6 +97,7 @@ class PatriciaDaoTest {
     query.update("DELETE FROM budget_header").run();
     query.update("DELETE FROM time_registration").run();
     query.update("DELETE FROM budget_line").run();
+    query.update("DELETE FROM work_code").run();
     removeAllDiscounts();
   }
 
@@ -203,13 +204,21 @@ class PatriciaDaoTest {
   void findUserHourlyRate() {
     double personGeneralHourlyRate = FAKER.number().randomDigitNotZero();
     double personHourlyRateForWorkCode = personGeneralHourlyRate + 10;
+    double defaultRateForWorkCode = personHourlyRateForWorkCode + 10;
 
     savePerson("username1", "username1@email.com", personGeneralHourlyRate);
     savePerson("username2", "username2@email.com", personGeneralHourlyRate);
     savePersonWorkCodeRate("username1", "workCode", personHourlyRateForWorkCode);
+    saveDefaultWorkCodeRate("workCode", defaultRateForWorkCode, 0);
+    saveDefaultWorkCodeRate("workCode2", defaultRateForWorkCode, 1);
+
+    assertThat(patriciaDao.findUserHourlyRate("workCode2", "username1").get())
+        .as("should get the default work code rate when replace_amount is 1")
+        .isEqualByComparingTo(BigDecimal.valueOf(defaultRateForWorkCode));
 
     assertThat(patriciaDao.findUserHourlyRate("workCode", "username1").get())
-        .as("should get the user's hourly rate for workcode if set")
+        .as("should get the user's hourly rate for work code if set " +
+            "and skip default work code rate when replace_amount is not 1")
         .isEqualByComparingTo(BigDecimal.valueOf(personHourlyRateForWorkCode));
 
     assertThat(patriciaDao.findUserHourlyRate("workCode", "username2").get())
@@ -422,6 +431,14 @@ class PatriciaDaoTest {
         "INSERT INTO pat_person_hourly_rate (pat_person_hourly_rate_id, login_id, work_code_id, hourly_rate) " +
         " VALUES (?, ?, ?, ?)")
         .params(FAKER.number().randomDigit(), loginId, workCode, hourlyRate)
+        .run();
+  }
+
+  private void saveDefaultWorkCodeRate(String workCode, double hourlyRate, int replaceAmount) {
+    fluentJdbc.query().update(
+        "INSERT INTO work_code (work_code_id, work_code_default_amount, replace_amount) " +
+            " VALUES (?, ?, ?)")
+        .params(workCode, hourlyRate, replaceAmount)
         .run();
   }
 

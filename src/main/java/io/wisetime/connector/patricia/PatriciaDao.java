@@ -171,8 +171,17 @@ public class PatriciaDao {
 
   Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
     Optional<BigDecimal> hourlyRate = query().select(
-        "  SELECT CASE WHEN EXISTS (" +
-             "    SELECT pat_person_hourly_rate_id" +
+        " SELECT CASE " +
+            "  WHEN EXISTS (" +
+            "    SELECT wc.work_code_default_amount" +
+            "    FROM work_code wc" +
+            "      WHERE wc.work_code_id = :wc_id and wc.replace_amount = 1)" +
+            "  THEN (" +
+            "    SELECT wc.work_code_default_amount" +
+            "    FROM work_code wc" +
+            "      WHERE wc.work_code_id = :wc_id and wc.replace_amount = 1)" +
+             "  WHEN EXISTS (" +
+             "    SELECT pphr.hourly_rate" +
              "    FROM pat_person_hourly_rate pphr" +
              "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id)" +
              "  THEN (" +
