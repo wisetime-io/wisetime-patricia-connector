@@ -98,7 +98,8 @@ dependencies {
         exclude group: 'org.apache.commons', module: 'commons-lang3'
     }
     testCompile 'org.flywaydb:flyway-core:5.1.1'
-    testRuntime 'com.h2database:h2:1.4.199'
+    // versions 1.4.198 and 1.4.199 fail when dealing with `getdate()` function
+    testRuntime 'com.h2database:h2:1.4.197'
 }
 
 test {

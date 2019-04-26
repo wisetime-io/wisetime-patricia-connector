@@ -35,6 +35,8 @@ steps:
       branch:
         exclude:
           - master
+      event:
+        - push
 
   - name: unit-test
     image: openjdk:8-jdk-slim
