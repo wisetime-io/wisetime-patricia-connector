@@ -45,16 +45,16 @@ public class ChargeCalculator {
     }
 
     // From the applicable discount, get discount that matches most to the case (tag name)
-    final List<Discount> matchingDiscounts = findDiscountMatchingPatriciaCase(
+    final List<Discount> matchingDiscounts = findDiscountsMatchingPatriciaCase(
         applicableDiscounts, patriciaCase
     );
 
     if (!matchingDiscounts.isEmpty()) {
-      // return the discount matching the most to the case
+      // return the discounts matching the most to the case
       return matchingDiscounts;
     } else {
       // return the general discount with highest priority
-      return sortDiscountsByHighestPriority(applicableDiscounts);
+      return filterDiscountsByHighestPriority(applicableDiscounts);
     }
   }
 
@@ -148,7 +148,7 @@ public class ChargeCalculator {
         .divide(BigDecimal.valueOf(3600), 2, BigDecimal.ROUND_HALF_UP);
   }
 
-  private static List<Discount> findDiscountMatchingPatriciaCase(List<Discount> discounts, Case patriciaCase) {
+  private static List<Discount> findDiscountsMatchingPatriciaCase(List<Discount> discounts, Case patriciaCase) {
     // find discount that matches the Patricia case
     final List<Discount> matchingDiscounts = discounts
         .stream()
@@ -161,16 +161,16 @@ public class ChargeCalculator {
         .collect(Collectors.toList());
 
     if (!matchingDiscounts.isEmpty()) {
-      sortDiscountsByHighestPriority(matchingDiscounts);
+      filterDiscountsByHighestPriority(matchingDiscounts);
 
       // return the matching discount with highest priority
-      return sortDiscountsByHighestPriority(matchingDiscounts);
+      return filterDiscountsByHighestPriority(matchingDiscounts);
     }
 
     return ImmutableList.of();
   }
 
-  private static List<Discount> sortDiscountsByHighestPriority(List<Discount> discounts) {
+  private static List<Discount> filterDiscountsByHighestPriority(List<Discount> discounts) {
     if (discounts.size() > 1) {
       List<Discount> sortableDiscounts = Lists.newArrayList(discounts);
       sortableDiscounts.sort(Collections.reverseOrder(Comparator.comparingInt(Discount::priority)));
