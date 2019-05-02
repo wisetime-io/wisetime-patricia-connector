@@ -40,6 +40,7 @@ The following configuration options are optional.
 | DATA_DIR                             | If set, the connector will use the directory as the location for storing data to keep track on the Patricia cases it has synced. By default, WiseTime Connector will create a temporary dir under `/tmp` as its data storage. |
 | TIMEZONE                             | The timezone to use when posting time to Patricia, e.g. `Australia/Perth`. Defaults to `UTC`.                                                                                                                                 |
 | WEBHOOK_PORT                         | If set, the connector will listen to this port e.g. 8090. Defaults to 8080.                                                                                                                                                   |
+| LOG_LEVEL                            | Define log level. Available values are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR` and `OFF`. Default is `INFO`.                                                                                                               |
 
 
 ## Running the WiseTime Postgres Connector
