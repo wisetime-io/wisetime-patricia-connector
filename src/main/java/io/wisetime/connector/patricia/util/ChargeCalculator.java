@@ -183,23 +183,23 @@ public class ChargeCalculator {
 
   private static BigDecimal calculateDiscountedBillingAmount(Discount discountToApply,
                                                              BigDecimal originalAmount) {
-    double result = evaluateDiscountFormula(discountToApply, originalAmount);
+    BigDecimal result = evaluateDiscountFormula(discountToApply, originalAmount);
 
-    return originalAmount.subtract(new BigDecimal(result));
+    return originalAmount.subtract(result);
   }
 
   private static BigDecimal calculateMarkedUpBillingAmount(Discount discountToApply,
                                                            BigDecimal originalAmount) {
-    double result = evaluateDiscountFormula(discountToApply, originalAmount);
+    BigDecimal result = evaluateDiscountFormula(discountToApply, originalAmount);
 
-    return originalAmount.add(new BigDecimal(result));
+    return originalAmount.add(result);
   }
 
-  private static double evaluateDiscountFormula(Discount discountToApply, BigDecimal originalAmount) {
-    return new ExpressionBuilder(discountToApply.priceChangeFormula().replace('@', 'x'))
+  private static BigDecimal evaluateDiscountFormula(Discount discountToApply, BigDecimal originalAmount) {
+    return new BigDecimal(new ExpressionBuilder(discountToApply.priceChangeFormula().replace('@', 'x'))
         .variable("x")
         .build()
         .setVariable("x", originalAmount.doubleValue())
-        .evaluate();
+        .evaluate()).setScale(2, BigDecimal.ROUND_HALF_UP);
   }
 }
