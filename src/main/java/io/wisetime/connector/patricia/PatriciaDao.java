@@ -94,7 +94,7 @@ public class PatriciaDao {
     );
     requiredTablesAndColumnsMap.put(
         "pat_work_code_discount_detail",
-        ImmutableSet.of("discount_id", "amount", "discount_pct")
+        ImmutableSet.of("discount_id", "amount", "discount_pct", "price_change_formula")
     );
     requiredTablesAndColumnsMap.put(
         "budget_header",
@@ -219,7 +219,7 @@ public class PatriciaDao {
             + "wcdh.work_code_id, "
             + "wcdh.discount_type, "
             + "wcdd.amount, "
-            + "wcdd.discount_pct "
+            + "wcdd.price_change_formula "
             + "FROM pat_work_code_discount_header wcdh "
             + "JOIN pat_work_code_discount_detail wcdd ON wcdh.discount_id = wcdd.discount_id "
             + "JOIN casting ON wcdh.actor_id = casting.actor_id "
@@ -384,7 +384,7 @@ public class PatriciaDao {
     final String workCodeId = rset.getString(6);
     final int discountType = rset.getInt(7);
     final BigDecimal amount = rset.getBigDecimal(8);
-    final BigDecimal discountPercent = rset.getBigDecimal(9);
+    final String priceChangeFormula = rset.getString(9);
     final DiscountPriority discountPriority = determineDiscountPriority(
         caseTypeId, stateId, applicationTypeId, workCodeId, workCodeType
     );
@@ -397,7 +397,7 @@ public class PatriciaDao {
         .workCodeType(workCodeType)
         .workCodeId(workCodeId)
         .amount(amount != null ? amount : BigDecimal.ZERO)
-        .discountPercent(discountPercent != null ? discountPercent : BigDecimal.ZERO)
+        .priceChangeFormula(priceChangeFormula)
         .discountType(discountType)
         .priority(discountPriority.getPriorityNum())
         .build();
@@ -492,10 +492,7 @@ public class PatriciaDao {
       return BigDecimal.ZERO;
     }
 
-    @Value.Default
-    default BigDecimal discountPercent() {
-      return BigDecimal.ZERO;
-    }
+    String priceChangeFormula();
   }
 
   @Value.Immutable

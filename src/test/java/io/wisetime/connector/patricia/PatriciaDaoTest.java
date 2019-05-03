@@ -460,9 +460,9 @@ class PatriciaDaoTest {
         )
         .run();
 
-    fluentJdbc.query().update("INSERT INTO pat_work_code_discount_detail (discount_id, amount) " +
-        " VALUES (?, ?)")
-        .params(discountId, FAKER.number().randomDigit())
+    fluentJdbc.query().update("INSERT INTO pat_work_code_discount_detail (discount_id, amount, price_change_formula) " +
+        " VALUES (?, ?, ?)")
+        .params(discountId, FAKER.number().randomDigit(), "@")
         .run();
 
   }

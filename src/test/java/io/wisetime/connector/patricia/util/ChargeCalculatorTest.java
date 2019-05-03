@@ -12,7 +12,6 @@ import com.github.javafaker.Faker;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.Optional;
 
 import io.wisetime.connector.patricia.FakeEntities;
 import io.wisetime.connector.patricia.ImmutableDiscount;
@@ -41,18 +40,21 @@ class ChargeCalculatorTest {
     Discount highestPriority = ImmutableDiscount.builder()
         .priority(10)
         .stateId(FAKER.crypto().md5())
+        .priceChangeFormula("@")
         .build();
     Discount midPriority = ImmutableDiscount.builder()
         .priority(5)
         .stateId(patriciaCase.stateId())
+        .priceChangeFormula("@")
         .build();
     Discount lowestPriority = ImmutableDiscount.builder()
         .priority(1)
         .stateId(FAKER.crypto().md5())
+        .priceChangeFormula("@")
         .build();
 
     assertThat(
-        ChargeCalculator.getMostApplicableDiscount(
+        ChargeCalculator.getMostApplicableDiscounts(
             ImmutableList.of(highestPriority, midPriority, lowestPriority), patriciaCase))
         .as("discount matching case should be selected")
         .contains(midPriority);
@@ -65,20 +67,23 @@ class ChargeCalculatorTest {
     Discount highestPriority = ImmutableDiscount.builder()
         .priority(10)
         .stateId(FAKER.crypto().md5())
+        .priceChangeFormula("@")
         .build();
     Discount midPriority = ImmutableDiscount.builder()
         .priority(5)
         .stateId(patriciaCase.stateId())
+        .priceChangeFormula("@")
         .caseTypeId(FAKER.number().numberBetween(1, 100)) // not matching
         .build();
     Discount lowestPriority = ImmutableDiscount.builder()
         .priority(1)
         .stateId(FAKER.crypto().md5()) // not matching
+        .priceChangeFormula("@")
         .caseTypeId(patriciaCase.caseTypeId())
         .build();
 
     assertThat(
-        ChargeCalculator.getMostApplicableDiscount(
+        ChargeCalculator.getMostApplicableDiscounts(
             ImmutableList.of(highestPriority, midPriority, lowestPriority), patriciaCase))
         .as("expecting general discount with highest priority if discount did not match the case")
         .contains(highestPriority);
@@ -92,92 +97,96 @@ class ChargeCalculatorTest {
   }
 
   @Test
-  void findMostApplicableDiscount_should_throw_ex_when_discount_has_same_priority() {
-    Case patriciaCase = GENERATOR.randomCase();
-
-    Discount highestPriority = ImmutableDiscount.builder()
-        .priority(10)
-        .applicationTypeId(FAKER.number().numberBetween(10, 100))
-        .build();
-    Discount midPriority1 = ImmutableDiscount.builder()
-        .priority(5)
-        .stateId(patriciaCase.stateId()) // matching state id
-        .build();
-    Discount midPriority2 = ImmutableDiscount.builder() // matching discount
-        .priority(5)
-        .build();
-    Discount lowestPriority = ImmutableDiscount.builder()
-        .priority(1)
-        .stateId(FAKER.crypto().md5())
-        .build();
-
-    assertThatThrownBy(
-        () -> ChargeCalculator.getMostApplicableDiscount(
-            ImmutableList.of(highestPriority, midPriority1, midPriority2, lowestPriority), patriciaCase))
-        .as("matching discount should have no same priority")
-        .withFailMessage("Indistinct discount policy for case/person combination detected. Please resolve.")
-        .isInstanceOf(RuntimeException.class);
-  }
-
-  @Test
-  void calculateTotalCharge_with_pure_discount_amount() {
+  void calculateTotalCharge_with_pure_discount_formula() {
     Discount discount = ImmutableDiscount.builder()
         .priority(10)
         .stateId(FAKER.crypto().md5())
         .discountType(ChargeCalculator.DISCOUNT_TYPE_PURE)
-        .amount(BigDecimal.valueOf(10))
+        .priceChangeFormula("@ * 0.1")
         .build();
 
     assertThat(
-        ChargeCalculator.calculateTotalCharge(Optional.of(discount), BigDecimal.valueOf(8), BigDecimal.valueOf(10))
-    )
-        .as("should deduct discount amount from total charge amount")
-        .isEqualByComparingTo(BigDecimal.valueOf(70));
-  }
-
-  @Test
-  void calculateTotalCharge_with_pure_discount_percentage() {
-    Discount discount = ImmutableDiscount.builder()
-        .priority(10)
-        .stateId(FAKER.crypto().md5())
-        .discountType(ChargeCalculator.DISCOUNT_TYPE_PURE)
-        .discountPercent(BigDecimal.valueOf(10))
-        .build();
-
-    assertThat(
-        ChargeCalculator.calculateTotalCharge(Optional.of(discount), new BigDecimal(8), BigDecimal.valueOf(10))
+        ChargeCalculator.calculateTotalCharge(ImmutableList.of(discount), new BigDecimal(8), BigDecimal.valueOf(10))
     )
         .as("should deduct discount amount from total charge amount by percentage")
         .isEqualByComparingTo(BigDecimal.valueOf(72));
   }
 
   @Test
-  void calculateTotalCharge_with_markup_discount_amount() {
-    Discount discount = ImmutableDiscount.builder()
+  void calculateTotalCharge_with_pure_discount_formula_while_choosing_correct_discount() {
+    Discount discount1 = ImmutableDiscount.builder()
         .priority(10)
+        .amount(BigDecimal.ZERO)
         .stateId(FAKER.crypto().md5())
-        .discountType(ChargeCalculator.DISCOUNT_TYPE_MARKUP)
-        .amount(BigDecimal.valueOf(10))
+        .discountType(ChargeCalculator.DISCOUNT_TYPE_PURE)
+        .priceChangeFormula("@")
+        .build();
+    Discount discount2 = ImmutableDiscount.builder()
+        .priority(10)
+        .amount(new BigDecimal(50))
+        .stateId(FAKER.crypto().md5())
+        .discountType(ChargeCalculator.DISCOUNT_TYPE_PURE)
+        .priceChangeFormula("@ * 0.1")
+        .build();
+    Discount discount3 = ImmutableDiscount.builder()
+        .priority(10)
+        .amount(new BigDecimal(100))
+        .stateId(FAKER.crypto().md5())
+        .discountType(ChargeCalculator.DISCOUNT_TYPE_PURE)
+        .priceChangeFormula("@ * 0.2")
         .build();
 
     assertThat(
-        ChargeCalculator.calculateTotalCharge(Optional.of(discount), BigDecimal.valueOf(8), BigDecimal.valueOf(10))
+        ChargeCalculator.calculateTotalCharge(
+            ImmutableList.of(discount1, discount2, discount3), new BigDecimal(8), BigDecimal.valueOf(10))
     )
-        .as("should add markup amount from total charge amount")
-        .isEqualByComparingTo(BigDecimal.valueOf(90));
+        .as("should deduct discount amount from total charge amount by percentage")
+        .isEqualByComparingTo(BigDecimal.valueOf(72));
   }
 
   @Test
-  void calculateTotalCharge_with_markup_discount_percentage() {
+  void calculateTotalCharge_with_markup_discount_formula() {
     Discount discount = ImmutableDiscount.builder()
         .priority(10)
         .stateId(FAKER.crypto().md5())
         .discountType(ChargeCalculator.DISCOUNT_TYPE_MARKUP)
-        .discountPercent(BigDecimal.valueOf(10))
+        .priceChangeFormula("@ * 0.1")
         .build();
 
     assertThat(
-        ChargeCalculator.calculateTotalCharge(Optional.of(discount), BigDecimal.valueOf(8.00), BigDecimal.valueOf(10))
+        ChargeCalculator.calculateTotalCharge(ImmutableList.of(discount), BigDecimal.valueOf(8.00), BigDecimal.valueOf(10))
+    )
+        .as("should add markup amount from total charge amount by percentage")
+        .isEqualByComparingTo(BigDecimal.valueOf(88));
+  }
+
+  @Test
+  void calculateTotalCharge_with_markup_discount_formula_while_choosing_correct_discount() {
+    Discount discount1 = ImmutableDiscount.builder()
+        .priority(10)
+        .amount(BigDecimal.ZERO)
+        .stateId(FAKER.crypto().md5())
+        .discountType(ChargeCalculator.DISCOUNT_TYPE_MARKUP)
+        .priceChangeFormula("@")
+        .build();
+    Discount discount2 = ImmutableDiscount.builder()
+        .priority(10)
+        .amount(new BigDecimal(50))
+        .stateId(FAKER.crypto().md5())
+        .discountType(ChargeCalculator.DISCOUNT_TYPE_MARKUP)
+        .priceChangeFormula("@ * 0.1")
+        .build();
+    Discount discount3 = ImmutableDiscount.builder()
+        .priority(10)
+        .amount(new BigDecimal(100))
+        .stateId(FAKER.crypto().md5())
+        .discountType(ChargeCalculator.DISCOUNT_TYPE_MARKUP)
+        .priceChangeFormula("@ * 0.2")
+        .build();
+
+    assertThat(
+        ChargeCalculator.calculateTotalCharge(
+            ImmutableList.of(discount1, discount2, discount3), new BigDecimal(8), BigDecimal.valueOf(10))
     )
         .as("should add markup amount from total charge amount by percentage")
         .isEqualByComparingTo(BigDecimal.valueOf(88));
@@ -189,11 +198,11 @@ class ChargeCalculatorTest {
         .priority(10)
         .stateId(FAKER.crypto().md5())
         .discountType(100)
-        .discountPercent(BigDecimal.valueOf(10))
+        .priceChangeFormula("@*0.5")
         .build();
 
     assertThatThrownBy(() ->
-        ChargeCalculator.calculateTotalCharge(Optional.of(discount), BigDecimal.valueOf(8.00), BigDecimal.valueOf(10))
+        ChargeCalculator.calculateTotalCharge(ImmutableList.of(discount), BigDecimal.valueOf(8.00), BigDecimal.valueOf(10))
     )
         .as("discount type is not supported")
         .withFailMessage("Unknown discount type 100")

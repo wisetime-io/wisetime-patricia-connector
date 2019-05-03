@@ -337,7 +337,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     final List<Discount> discounts = patriciaDao.findDiscounts(
         params.workCode(), roleTypeId, params.patriciaCase().caseId()
     );
-    final Optional<Discount> discount = ChargeCalculator.getMostApplicableDiscount(discounts, params.patriciaCase());
+    final List<Discount> applicableDiscounts = ChargeCalculator.getMostApplicableDiscounts(discounts, params.patriciaCase());
 
     TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
         .caseId(params.patriciaCase().caseId())
@@ -355,7 +355,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     BigDecimal actualWorkTotalAmount = params.chargeableHoursNoExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithoutDiscount = params.chargeableHoursWithExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
-        discount, params.chargeableHoursWithExpRating(), params.hourlyRate()
+        applicableDiscounts, params.chargeableHoursWithExpRating(), params.hourlyRate()
     );
 
     BudgetLine budgetLine = ImmutableBudgetLine.builder()
