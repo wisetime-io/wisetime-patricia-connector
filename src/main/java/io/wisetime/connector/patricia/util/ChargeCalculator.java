@@ -161,8 +161,6 @@ public class ChargeCalculator {
         .collect(Collectors.toList());
 
     if (!matchingDiscounts.isEmpty()) {
-      filterDiscountsByHighestPriority(matchingDiscounts);
-
       // return the matching discount with highest priority
       return filterDiscountsByHighestPriority(matchingDiscounts);
     }
