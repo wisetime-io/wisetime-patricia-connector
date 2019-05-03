@@ -94,7 +94,7 @@ public class PatriciaDao {
     );
     requiredTablesAndColumnsMap.put(
         "pat_work_code_discount_detail",
-        ImmutableSet.of("discount_id", "amount", "discount_pct")
+        ImmutableSet.of("discount_id", "amount", "discount_pct", "price_change_formula")
     );
     requiredTablesAndColumnsMap.put(
         "budget_header",
