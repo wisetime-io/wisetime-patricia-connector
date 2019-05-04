@@ -53,7 +53,7 @@ public class ChargeCalculator {
   public static BigDecimal calculateTotalCharge(List<Discount> discounts,
                                                 BigDecimal durationInHours,
                                                 BigDecimal hourlyRate) {
-    if (BigDecimal.ZERO.equals(hourlyRate)) {
+    if (BigDecimal.ZERO.compareTo(hourlyRate) == 0) {
       return BigDecimal.ZERO;
     }
     BigDecimal amount = durationInHours.multiply(hourlyRate);
@@ -85,6 +85,10 @@ public class ChargeCalculator {
   }
 
   public static BigDecimal calculateDiscountPercentage(BigDecimal amountWithoutDiscount, BigDecimal amountWithDiscount) {
+    // amount can be zero, if Unit Price was zero
+    if (BigDecimal.ZERO.compareTo(amountWithoutDiscount) == 0) {
+      return BigDecimal.ZERO;
+    }
     return amountWithDiscount
         .subtract(amountWithoutDiscount)
         .divide(amountWithoutDiscount, 5, RoundingMode.HALF_UP)
