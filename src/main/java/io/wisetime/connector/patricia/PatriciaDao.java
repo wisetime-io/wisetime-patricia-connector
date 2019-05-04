@@ -170,7 +170,7 @@ public class PatriciaDao {
   }
 
   Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
-    Optional<BigDecimal> hourlyRate = query().select(
+    return query().select(
         " SELECT CASE " +
             "  WHEN EXISTS (" +
             "    SELECT wc.work_code_default_amount" +
@@ -196,16 +196,8 @@ public class PatriciaDao {
     )
         .namedParam("login_id", loginId)
         .namedParam("wc_id", workCodeId)
-        .firstResult(rs ->
-            rs.getBigDecimal(1) != null ? rs.getBigDecimal(1) : BigDecimal.ZERO
-        );
-
-    if (hourlyRate.isPresent() && hourlyRate.get().compareTo(BigDecimal.ZERO) > 0) {
-      return hourlyRate;
-    } else {
-      // unit price = 0 means there is no unit price retrieved in DB
-      return Optional.empty();
-    }
+        .filter(Objects::nonNull)
+        .firstResult(rs -> rs.getBigDecimal(1));
   }
 
   List<Discount> findDiscounts(final String workCodeId, final int roleTypeId, final long caseId) {
