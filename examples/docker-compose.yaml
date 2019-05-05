@@ -38,10 +38,6 @@ services:
       # uncomment if default webhook port should be changed (also change docker ports definition above correspondingly!)
       # WEBHOOK_PORT: 8080
 
-      # define tag modifiers based on patricia work codes - time posted with a selected tag modifier will be posted with the corresponding work code
-      TAG_MODIFIER_WORK_CODE_MAPPING: "A1:101,B2:102,C3:103"
-      DEFAULT_MODIFIER: A1
-
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
       PATRICIA_ROLE_TYPE_ID: <role_type_id>
       

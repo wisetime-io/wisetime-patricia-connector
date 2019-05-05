@@ -61,8 +61,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   private static final Faker FAKER = new Faker();
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
 
-  private static final String DEFAULT_MODIFIER = "defaultModifier";
-  private static final String ANOTHER_MODIFIER = "otherModifier";
+  private static final String ACTIVITY_TYPE_CODE = "DM";
 
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
   private static PatriciaDao patriciaDaoMock = mock(PatriciaDao.class);
@@ -73,11 +72,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   @BeforeAll
   static void setUp() {
     RuntimeConfig.rebuild();
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, DEFAULT_MODIFIER);
-    RuntimeConfig.setProperty(
-        ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING,
-        String.format("%s:DM, %s:OM", DEFAULT_MODIFIER, ANOTHER_MODIFIER)
-    );
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
 
     // Set a role type id to use
@@ -153,7 +147,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_externalIdNotEmail_cantFindUser() {
     final String externalId = "i.am.login.id";
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser()
             .externalId(externalId));
 
@@ -174,7 +168,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_externalIdAsEmail_cantFindUser() {
     final String externalId = "this-looks@like.email";
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser()
             .externalId(externalId));
 
@@ -194,7 +188,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_noExternalId_cantFindUserByUserEmail() {
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser()
             .externalId(null)); // we should only check on email if external id is not set
 
@@ -214,7 +208,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_noHourlyRate() {
-    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER);
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE);
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
@@ -231,7 +225,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_unable_to_get_date_from_db() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110);
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().activityTypeCode(ACTIVITY_TYPE_CODE).activityHour(2018110110);
     timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
@@ -259,7 +253,10 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_unable_to_get_currency() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2018110110).firstObservedInHour(0);
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .activityHour(2018110110)
+        .firstObservedInHour(0);
     timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
@@ -288,10 +285,12 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  void postTime_multiple_modifier() {
+  void postTime_multiple_activityTypeCode() {
     final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier(DEFAULT_MODIFIER).activityHour(2018110110);
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier(ANOTHER_MODIFIER).activityHour(2018110110);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
+        .activityTypeCode(ACTIVITY_TYPE_CODE).activityHour(2018110110);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityTypeCode("another activity typ code").activityHour(2018110110);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
@@ -304,7 +303,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
-        .as("Time group contains invalid modifier.")
+        .as("Time group contains multiple activity type codes.")
         .isEqualTo(PostResult.PERMANENT_FAILURE);
 
     verifyPatriciaNotUpdated();
@@ -316,10 +315,16 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
 
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121).modifier("").durationSecs(600)
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110121)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(600)
         .firstObservedInHour(0);
     timeRow1.setDescription(FAKER.lorem().characters());
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110122).modifier("").durationSecs(300)
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110122)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(300)
         .firstObservedInHour(0);
     timeRow2.setDescription(FAKER.lorem().characters());
 
@@ -459,13 +464,13 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(convertedTimeGroup.getTimeRows().get(0).getActivity()).isEqualTo(timeRow.getActivity());
     assertThat(convertedTimeGroup.getTimeRows().get(0).getDescription()).isEqualTo(timeRow.getDescription());
     assertThat(convertedTimeGroup.getTimeRows().get(0).getDurationSecs()).isEqualTo(timeRow.getDurationSecs());
-    assertThat(convertedTimeGroup.getTimeRows().get(0).getModifier()).isEqualTo(timeRow.getModifier());
+    assertThat(convertedTimeGroup.getTimeRows().get(0).getActivityTypeCode()).isEqualTo(timeRow.getActivityTypeCode());
   }
 
   @Test
   void postTime_should_use_external_id_as_username() {
     final String externalId = "i.am.login.id";
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser().externalId(externalId));
     setPrerequisitesForSuccessfulPostTime(timeGroup);
     when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(true);
@@ -487,7 +492,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_should_use_external_id_as_email() {
     final String externalId = "this-looks@like.email";
     final String loginId = "i.am.login.id";
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser().externalId(externalId));
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
@@ -509,7 +514,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_should_use_email_for_getting_user() {
     final String patLoginId = "valid-patricia-login-id";
-    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(DEFAULT_MODIFIER)
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser().externalId(null)); // set external id to enable email check
     setPrerequisitesForSuccessfulPostTime(timeGroup);
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getEmail())).thenReturn(Optional.of(patLoginId));

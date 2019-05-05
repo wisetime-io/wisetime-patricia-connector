@@ -41,8 +41,6 @@ class PatriciaConnectorIntegrationTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_JDBC_URL, "<change-me>");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_JDBC_USERNAME, "<change-me>");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_JDBC_PASSWORD, "<change-me>");
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "<change-me>");
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "<change-me>");
 
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "5");
@@ -73,7 +71,6 @@ class PatriciaConnectorIntegrationTest {
             .firstObservedInHour(0)
             .durationSecs(233)
             .submittedDate(20190502222713606L)
-            .modifier("Client Meeting")
             .source(TimeRow.SourceEnum.WT_DESKTOP),
             new TimeRow()
                 .activity("Google Chrome")
@@ -82,7 +79,6 @@ class PatriciaConnectorIntegrationTest {
                 .firstObservedInHour(5)
                 .durationSecs(475)
                 .submittedDate(20190502222713606L)
-                .modifier("Client Meeting")
                 .source(TimeRow.SourceEnum.WT_DESKTOP),
             new TimeRow()
                 .activity("Google Chrome")
@@ -91,7 +87,6 @@ class PatriciaConnectorIntegrationTest {
                 .firstObservedInHour(30)
                 .durationSecs(744)
                 .submittedDate(20190502222713606L)
-                .modifier("Client Meeting")
                 .source(TimeRow.SourceEnum.WT_DESKTOP)))
         .user(new User()
             .name("PI Demo")

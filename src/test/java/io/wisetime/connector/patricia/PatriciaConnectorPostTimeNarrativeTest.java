@@ -60,10 +60,6 @@ public class PatriciaConnectorPostTimeNarrativeTest {
   @BeforeAll
   static void setUp() {
     RuntimeConfig.rebuild();
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "defaultModifier");
-    RuntimeConfig.setProperty(
-        ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "defaultModifier:DM, modifier2:M2"
-    );
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
@@ -99,9 +95,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
   @Test
   void divide_between_tags() {
     final TimeRow earliestTimeRow = FAKE_ENTITIES.randomTimeRow()
-        .modifier("").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
+        .activityTypeCode("DM").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
     final TimeRow latestTimeRow = FAKE_ENTITIES.randomTimeRow()
-        .modifier("").activityHour(2019031810).firstObservedInHour(8).durationSecs(1000);
+        .activityTypeCode("DM").activityHour(2019031810).firstObservedInHour(8).durationSecs(1000);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
@@ -162,7 +158,7 @@ public class PatriciaConnectorPostTimeNarrativeTest {
   @Test
   void whole_duration_for_each_tag() {
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
-        .modifier("")
+        .activityTypeCode("DM")
         .activityHour(2016050113)
         .firstObservedInHour(7)
         .durationSecs(120)
@@ -221,8 +217,8 @@ public class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void narrative_only() {
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113).durationSecs(360);
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().modifier("").activityHour(2017050113).durationSecs(360);
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityTypeCode("DM").activityHour(2017050113).durationSecs(360);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityTypeCode("DM").activityHour(2017050113).durationSecs(360);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
@@ -258,9 +254,13 @@ public class PatriciaConnectorPostTimeNarrativeTest {
   @Test
   void sanitize_app_name_and_window_title() {
     final TimeRow nullWindowTitle = FAKE_ENTITIES.randomTimeRow()
-        .activity("@_Thinking_@").description(null).modifier("").activityHour(2018110109).durationSecs(120);
+        .activity("@_Thinking_@").description(null).activityTypeCode("DM").activityHour(2018110109).durationSecs(120);
     final TimeRow emptyWindowTitle = FAKE_ENTITIES.randomTimeRow()
-        .activity("@_Videocall_@").description("@_empty_@").modifier("").activityHour(2018110109).durationSecs(181);
+        .activity("@_Videocall_@")
+        .description("@_empty_@")
+        .activityTypeCode("DM")
+        .activityHour(2018110109)
+        .durationSecs(181);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
