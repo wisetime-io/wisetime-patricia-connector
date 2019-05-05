@@ -97,9 +97,9 @@ steps:
     commands:
       - ./mirror.sh
     when:
-      branch:
-        include:
-          - master
+      ref:
+        - refs/heads/master
+        - refs/tags/*
 
 trigger:
   event:
