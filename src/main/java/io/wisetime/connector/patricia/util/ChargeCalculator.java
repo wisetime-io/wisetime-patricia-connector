@@ -201,6 +201,6 @@ public class ChargeCalculator {
         .variable("x")
         .build()
         .setVariable("x", originalAmount.doubleValue())
-        .evaluate()).setScale(2, BigDecimal.ROUND_HALF_UP);
+        .evaluate());
   }
 }
