@@ -61,7 +61,7 @@ class ChargeCalculatorTest {
   }
 
   @Test
-  void findMostApplicableDiscount_should_find_general_discount_with_highest_priority() {
+  void findMostApplicableDiscount_should_find_no_match() {
     Case patriciaCase = GENERATOR.randomCase();
 
     Discount highestPriority = ImmutableDiscount.builder()
@@ -85,8 +85,8 @@ class ChargeCalculatorTest {
     assertThat(
         ChargeCalculator.getMostApplicableDiscounts(
             ImmutableList.of(highestPriority, midPriority, lowestPriority), patriciaCase))
-        .as("expecting general discount with highest priority if discount did not match the case")
-        .contains(highestPriority);
+        .as("No matching discount should be returned")
+        .isEmpty();
   }
 
   @Test
