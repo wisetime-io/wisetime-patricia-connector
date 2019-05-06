@@ -234,25 +234,25 @@ public class PatriciaDao {
         .firstResult(this::mapToCase);
   }
 
-  void updateBudgetHeader(final long caseId, final String recordalDate) {
+  long updateBudgetHeader(final long caseId, final String recordalDate) {
     final boolean budgetHeaderExist =
         query().select("SELECT COUNT(*) FROM budget_header WHERE case_id = ?")
             .params(caseId)
             .singleResult(Mappers.singleLong()) > 0;
 
     if (budgetHeaderExist) {
-      query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
+      return query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
           .params(recordalDate, caseId)
-          .run();
+          .run().affectedRows();
     } else {
-      query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
+      return query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
           .params(caseId, recordalDate)
-          .run();
+          .run().affectedRows();
     }
   }
 
-  void addTimeRegistration(TimeRegistration timeRegistration) {
-    query().update(
+  long addTimeRegistration(TimeRegistration timeRegistration) {
+    return query().update(
         "INSERT INTO time_registration ("
             + "  work_code_id,"
             + "  case_id,"
@@ -289,11 +289,11 @@ public class PatriciaDao {
         .namedParam("tc", timeRegistration.comment())
         .namedParam("bd", timeRegistration.submissionDate())
         .namedParam("eid", timeRegistration.submissionDate())
-        .run();
+        .run().affectedRows();
   }
 
-  void addBudgetLine(BudgetLine budgetLine) {
-    query().update(
+  long addBudgetLine(BudgetLine budgetLine) {
+    return query().update(
         "INSERT INTO budget_line ("
             + "  b_l_seq_number,"
             + "  work_code_id,"
@@ -340,7 +340,7 @@ public class PatriciaDao {
         .namedParam("discamt", budgetLine.discountAmount().setScale(2, BigDecimal.ROUND_HALF_UP))
         .namedParam("cur", budgetLine.currency())
         .namedParam("er", 1)
-        .run();
+        .run().affectedRows();
   }
 
   String getDbDate() {
