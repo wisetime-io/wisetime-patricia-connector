@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 /**
  * @author alvin.llobrera@practiceinsight.io
  */
-public class PatriciaConnectorPostTimeNarrativeTest {
+class PatriciaConnectorPostTimeNarrativeTest {
 
   private static final Faker FAKER = new Faker();
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
@@ -130,7 +130,11 @@ public class PatriciaConnectorPostTimeNarrativeTest {
             "\r\n16:00 - 16:59\n" +
             "- 50m 6s - " + earliestTimeRow.getActivity() + " - " + earliestTimeRow.getDescription() + "\n" +
             "\r\n18:00 - 18:59\n" +
-            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription());
+            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription())
+        .contains("\r\nTotal Worked Time: 1h 6m 46s\n" +
+            "Total Chargeable Time: 25m")
+        .endsWith("\r\nThe above times have been split across 2 cases and are thus greater than " +
+            "the chargeable time in this case");
     assertThat(timeRegCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for time registration.")
         .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
@@ -147,13 +151,7 @@ public class PatriciaConnectorPostTimeNarrativeTest {
             "\r\n16:00 - 16:59\n" +
             "- 50m 6s - " + earliestTimeRow.getActivity() + " - " + earliestTimeRow.getDescription() + "\n" +
             "\r\n18:00 - 18:59\n" +
-            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription()
-        )
-        .contains("\r\nTotal Worked Time: 1h 6m 46s\n" +
-            "Total Chargeable Time: 25m\n" +
-            "Experience Weighting: 50%")
-        .endsWith("\r\nThe above times have been split across 2 cases and are thus greater than " +
-            "the chargeable time in this case");
+            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription());
     assertThat(budgetLineCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for budget line.")
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
@@ -193,7 +191,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .as("should include time row details with start time converted in configured time zone")
         .contains(
             "\r\n21:00 - 21:59\n" +
-            "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription());
+            "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription())
+        .endsWith("\r\nTotal Worked Time: 2m\n" +
+            "Total Chargeable Time: 5m");
     assertThat(timeRegCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for time registration.")
         .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
@@ -210,10 +210,6 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .contains(
             "\r\n21:00 - 21:59\n" +
             "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription());
-    assertThat(budgetLineComment)
-        .endsWith("\r\nTotal Worked Time: 2m\n" +
-            "Total Chargeable Time: 5m\n" +
-            "Experience Weighting: 100%");
     assertThat(budgetLineCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for budget line.")
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
@@ -239,20 +235,21 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .as("Valid time group should be posted successfully")
         .isEqualTo(PostResult.SUCCESS);
 
-    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
-    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
-    final String budgetLineCommentForCase1 = budgetLineCaptor.getAllValues().get(0).comment();
+    ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegistrationCaptor =
+        ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegistrationCaptor.capture());
+    final String budgetLineCommentForCase1 = timeRegistrationCaptor.getAllValues().get(0).comment();
     assertThat(budgetLineCommentForCase1)
         .as("should display narrative only")
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
         .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
-        .endsWith("Total Worked Time: 12m\n" +
-            "Total Chargeable Time: 5m\n" +
-            "Experience Weighting: 100%");
+        // No summary block if NARRATIVE_ONLY
+        .doesNotContain("Total Worked Time:")
+        .doesNotContain("Total Chargeable Time: 5m");
     assertThat(budgetLineCommentForCase1)
         .as("comment for the other case should be the same")
-        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
+        .isEqualTo(timeRegistrationCaptor.getAllValues().get(1).comment());
   }
 
   @Test
@@ -288,7 +285,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .contains(
             "\n\r\n17:00 - 17:59" +
             "\n- 2m - Thinking - No window title available" +
-            "\n- 3m 1s - Videocall - No window title available");
+            "\n- 3m 1s - Videocall - No window title available")
+        .endsWith("\nTotal Worked Time: 5m 1s\n" +
+            "Total Chargeable Time: 5m");
     assertThat(timeRegCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for time registration.")
         .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
@@ -305,11 +304,7 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .contains(
             "\n\r\n17:00 - 17:59" +
             "\n- 2m - Thinking - No window title available" +
-            "\n- 3m 1s - Videocall - No window title available"
-        )
-        .endsWith("\nTotal Worked Time: 5m 1s\n" +
-            "Total Chargeable Time: 5m\n" +
-            "Experience Weighting: 100%");
+            "\n- 3m 1s - Videocall - No window title available");
     assertThat(budgetLineCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for budget line.")
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
