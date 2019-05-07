@@ -23,11 +23,16 @@ services:
       description: WiseTime Patricia Connector
     image: wisetime/wisetime-patricia-connector:latest
     restart: always
-    ports:
-      - "8080:8080"
+
+    # uncomment the ports: definition if the connector should work in webhook mode.
+    # ports:
+    #   - "8080:8080"
+
     environment:
       API_KEY: YOUR_WISETIME_CONNECT_API_KEY
-      CALLER_KEY: PICK_A_SECRET
+	  
+	  # Set loglevel if other than default - INFO - required
+	  # LOGLEVEL: DEBUG
 
       # define appropriate timezone
       TIMEZONE: Australia/Perth
@@ -35,7 +40,11 @@ services:
       TAG_UPSERT_PATH: /Patricia/
       TAG_UPSERT_BATCH_SIZE: 500
 
-      # uncomment if default webhook port should be changed (also change docker ports definition above correspondingly!)
+      # uncomment the following - as well as the above docker ports: definition - if the connector
+      # should work in webhook mode. If the connector should work using other than the default
+      # port, please adapt the docker ports: definition in line with the WEBHOOK_PORT variable.
+      # CONNECTOR_MODE: WEBHOOK
+      # CALLER_KEY: PICK_A_SECRET
       # WEBHOOK_PORT: 8080
 
       # define tag modifiers based on patricia work codes - time posted with a selected tag modifier will be posted with the corresponding work code
@@ -44,9 +53,6 @@ services:
 
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
       PATRICIA_ROLE_TYPE_ID: <role_type_id>
-      
-      # optional - uncomment if needed
-      # INVOICE_COMMENT_OVERRIDE: "Time based charge determined by WiseTime"
 
       PATRICIA_JDBC_URL: "jdbc:sqlserver://HOST:PORT;databaseName=DATABASE_NAME;ssl=request;useCursors=true"
       PATRICIA_JDBC_USERNAME: USERNAME
