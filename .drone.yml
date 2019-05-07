@@ -150,3 +150,17 @@ name: github-ssh-key-b64
 get:
   path: drone/publish/github/patr-ix-win
   name: gh-patricia-key-b64
+
+---
+kind: secret
+name: bamboo-user
+get:
+  path: drone/bamboo/trigger
+  name: bamboo-user
+
+---
+kind: secret
+name: bamboo-pass
+get:
+  path: drone/bamboo/trigger
+  name: bamboo-pass
