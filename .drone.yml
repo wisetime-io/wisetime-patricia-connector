@@ -46,8 +46,8 @@ steps:
       - name: gradle-modules-2
         path: /gradle/caches/modules-2
     commands:
-      - echo ${DRONE_HOST}
-      - ./gradlew test check --stacktrace
+      - echo $${DRONE_MACHINE}
+      - ./gradlew test check
 
   - name: save-cache
     image: drillster/drone-volume-cache
@@ -81,6 +81,21 @@ steps:
       branch:
         include:
           - master
+
+  - name: cascade-to-bamboo
+    image: quay.io/wisetime/alpine-git-bash
+    environment:
+      BAMBOO_USER:
+        from_secret: bamboo-user
+      BAMBOO_PASS:
+        from_secret: bamboo-pass
+    commands:
+      - echo "Caccade to artifact via user $${BAMBOO_USER}"
+      - ./bin/cascade.sh
+    when:
+      ref:
+        - refs/heads/master
+        - refs/tags/*
 
 volumes:
   - name: host-cache
