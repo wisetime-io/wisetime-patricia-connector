@@ -293,6 +293,7 @@ class PatriciaDaoTest {
   void addTimeRegistration() {
     final long caseId = FAKER.number().randomNumber();
     final TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
+        .budgetLineSequenceNumber(FAKER.number().numberBetween(10, 100))
         .caseId(caseId)
         .workCodeId(FAKER.bothify("?#"))
         .userId(FAKER.name().firstName())
@@ -308,7 +309,7 @@ class PatriciaDaoTest {
     fluentJdbc.query().select(
         "SELECT work_code_id, case_id, registration_date_time, login_id, calendar_date, worked_time, debited_time, " +
             "   time_transferred, number_of_words, worked_amount, b_l_case_id, time_comment_invoice, time_comment, " +
-            "   time_reg_booked_date, earliest_invoice_date " +
+            "   earliest_invoice_date, b_l_seq_number " +
             " FROM time_registration WHERE case_id = ?")
         .params(caseId)
         .singleResult(rs -> {
@@ -332,14 +333,14 @@ class PatriciaDaoTest {
           assertThat(rs.getBigDecimal(7))
               .as("should have set corrrect chargeable hours")
               .isEqualByComparingTo(timeRegistration.chargeableHours());
-          assertThat(rs.getString(8)).isEqualTo("!");
-          assertThat(rs.getInt(9)).isEqualTo(0);
+          assertThat(rs.getString(8)).isEqualTo(null);
+          assertThat(rs.getString(9)).isEqualTo(null);
           assertThat(rs.getDouble(10)).isEqualTo(0.00);
           assertThat(rs.getLong(11)).isEqualTo(timeRegistration.caseId());
           assertThat(rs.getString(12)).isEqualTo(timeRegistration.comment());
           assertThat(rs.getString(13)).isEqualTo(timeRegistration.comment());
           assertThat(rs.getString(14)).isEqualTo(timeRegistration.submissionDate());
-          assertThat(rs.getString(15)).isEqualTo(timeRegistration.submissionDate());
+          assertThat(rs.getInt(15)).isEqualTo(timeRegistration.budgetLineSequenceNumber());
 
           return Void.TYPE;
         });
@@ -349,6 +350,7 @@ class PatriciaDaoTest {
   void addBudgetLine() {
     final long caseId = FAKER.number().randomDigitNotZero();
     final BudgetLine budgetLine = ImmutableBudgetLine.builder()
+        .budgetLineSequenceNumber(FAKER.number().numberBetween(10, 100))
         .caseId(caseId)
         .workCodeId(FAKER.lorem().characters(1, 10))
         .userId(FAKER.name().name())
@@ -371,14 +373,12 @@ class PatriciaDaoTest {
         "SELECT b_l_seq_number, work_code_id, b_l_quantity, b_l_org_quantity, b_l_unit_price, " +
             "   b_l_org_unit_price, b_l_unit_price_no_discount, deb_handlagg, b_l_amount, b_l_org_amount, case_id," +
             "   show_time_comment, registered_by, earliest_inv_date, b_l_comment, recorded_date, discount_prec, " +
-            "   discount_amount, currency_id, exchange_rate" +
+            "   discount_amount, currency_id, exchange_rate, indicator " +
             " FROM budget_line WHERE case_id = ?")
         .params(caseId)
         .singleResult(rs -> {
           // assert if correct values are set
-          assertThat(rs.getInt(1))
-              .as("Initial sequence should be 1")
-              .isEqualTo(1);
+          assertThat(rs.getInt(1)).isEqualTo(budgetLine.budgetLineSequenceNumber());
           assertThat(rs.getString(2)).isEqualTo(budgetLine.workCodeId());
           assertThat(rs.getBigDecimal(3)).isEqualByComparingTo(budgetLine.chargeableWorkTotalHours());
           assertThat(rs.getBigDecimal(4)).isEqualByComparingTo(budgetLine.actualWorkTotalHours());
@@ -398,13 +398,14 @@ class PatriciaDaoTest {
           assertThat(rs.getBigDecimal(18)).isEqualByComparingTo(budgetLine.discountAmount());
           assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());
           assertThat(rs.getInt(20)).isEqualTo(1);
+          assertThat(rs.getString(21)).isEqualTo("TT");
 
           return Void.TYPE;
         });
 
     assertThat(patriciaDao.findNextBudgetLineSeqNum(caseId))
         .as("next sequence number for budget line should be 2")
-        .isEqualTo(2);
+        .isEqualTo(budgetLine.budgetLineSequenceNumber() + 1);
   }
 
   private void saveCase(Case patCase) {

@@ -267,11 +267,11 @@ public class PatriciaDao {
             + "  b_l_case_id,"
             + "  time_comment_invoice,"
             + "  time_comment,"
-            + "  time_reg_booked_date,"
-            + "  earliest_invoice_date"
+            + "  B_L_SEQ_NUMBER,"
+            + "  earliest_invoice_date "
             + ")"
             + "VALUES ("
-            + "  :wc, :cid, :rd, :li, :cd, :wt, :dt, :tt, :nw, :wa, :bci, :tci, :tc, :bd, :eid"
+            + "  :wc, :cid, :rd, :li, :cd, :wt, :dt, :tt, :nw, :wa, :bci, :tci, :tc, :blseq, :eid"
             + ")"
     )
         .namedParam("wc", timeRegistration.workCodeId())
@@ -281,13 +281,13 @@ public class PatriciaDao {
         .namedParam("cd", timeRegistration.activityDate())
         .namedParam("wt", timeRegistration.actualHours())
         .namedParam("dt", timeRegistration.chargeableHours())
-        .namedParam("tt", "!")
-        .namedParam("nw", 0)
+        .namedParam("tt", null)
+        .namedParam("nw", null)
         .namedParam("wa", "0.00")
         .namedParam("bci", timeRegistration.caseId())
         .namedParam("tci", timeRegistration.comment())
         .namedParam("tc", timeRegistration.comment())
-        .namedParam("bd", timeRegistration.submissionDate())
+        .namedParam("blseq", timeRegistration.budgetLineSequenceNumber())
         .namedParam("eid", timeRegistration.submissionDate())
         .run().affectedRows();
   }
@@ -314,15 +314,16 @@ public class PatriciaDao {
             + "  discount_prec,"
             + "  discount_amount,"
             + "  currency_id,"
-            + "  exchange_rate"
+            + "  exchange_rate, "
+            + "  INDICATOR"
             + ") "
             + "VALUES ("
             + "  :bsn, :wc, :dt, :wt, :upd, :upd, :up, :li, :ttlblamt, :ttlbloamt, :cid, "
-            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er"
+            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er, :indicator"
             + ")"
     )
         // make sure BigDecimal scales match the DB
-        .namedParam("bsn", findNextBudgetLineSeqNum(budgetLine.caseId()))
+        .namedParam("bsn", budgetLine.budgetLineSequenceNumber())
         .namedParam("wc", budgetLine.workCodeId())
         .namedParam("dt", budgetLine.chargeableWorkTotalHours().setScale(2, BigDecimal.ROUND_HALF_UP))
         .namedParam("wt", budgetLine.actualWorkTotalHours().setScale(2, BigDecimal.ROUND_HALF_UP))
@@ -340,6 +341,7 @@ public class PatriciaDao {
         .namedParam("discamt", budgetLine.discountAmount().setScale(2, BigDecimal.ROUND_HALF_UP))
         .namedParam("cur", budgetLine.currency())
         .namedParam("er", 1)
+        .namedParam("indicator", "TT")
         .run().affectedRows();
   }
 
@@ -490,6 +492,9 @@ public class PatriciaDao {
 
   @Value.Immutable
   public interface TimeRegistration {
+
+    int budgetLineSequenceNumber();
+
     long caseId();
 
     String workCodeId();
@@ -509,6 +514,8 @@ public class PatriciaDao {
 
   @Value.Immutable
   public interface BudgetLine {
+
+    int budgetLineSequenceNumber();
 
     long caseId();
 

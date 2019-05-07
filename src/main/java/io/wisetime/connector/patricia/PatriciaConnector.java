@@ -339,26 +339,16 @@ public class PatriciaConnector implements WiseTimeConnector {
     );
     final List<Discount> applicableDiscounts = ChargeCalculator.getMostApplicableDiscounts(discounts, params.patriciaCase());
 
-    TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
-        .caseId(params.patriciaCase().caseId())
-        .workCodeId(params.workCode())
-        .userId(params.userId())
-        .submissionDate(dbDate)
-        .activityDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
-            .withZoneSameInstant(getTimeZoneId())
-            .format(DATE_TIME_FORMATTER))
-        .actualHours(params.actualHoursNoExpRating())
-        .chargeableHours(params.chargeableHoursNoExpRating())
-        .comment(params.timeRegComment())
-        .build();
-
     BigDecimal actualWorkTotalAmount = params.chargeableHoursNoExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithoutDiscount = params.chargeableHoursWithExpRating().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
         applicableDiscounts, params.chargeableHoursWithExpRating(), params.hourlyRate()
     );
 
+    final int budgetLineSequenceNumber = patriciaDao.findNextBudgetLineSeqNum(params.patriciaCase().caseId());
+
     BudgetLine budgetLine = ImmutableBudgetLine.builder()
+        .budgetLineSequenceNumber(budgetLineSequenceNumber)
         .caseId(params.patriciaCase().caseId())
         .workCodeId(params.workCode())
         .userId(params.userId())
@@ -373,6 +363,20 @@ public class PatriciaConnector implements WiseTimeConnector {
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
         .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHoursWithExpRating()))
         .comment(params.chargeComment())
+        .build();
+
+    TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
+        .budgetLineSequenceNumber(budgetLineSequenceNumber)
+        .caseId(params.patriciaCase().caseId())
+        .workCodeId(params.workCode())
+        .userId(params.userId())
+        .submissionDate(dbDate)
+        .activityDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
+            .withZoneSameInstant(getTimeZoneId())
+            .format(DATE_TIME_FORMATTER))
+        .actualHours(params.actualHoursNoExpRating())
+        .chargeableHours(params.chargeableHoursNoExpRating())
+        .comment(params.timeRegComment())
         .build();
 
     long numberOfAffectedBudgedHeaders = patriciaDao.updateBudgetHeader(params.patriciaCase().caseId(), dbDate);
