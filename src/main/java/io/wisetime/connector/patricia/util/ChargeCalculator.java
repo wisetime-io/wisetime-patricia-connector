@@ -45,22 +45,17 @@ public class ChargeCalculator {
     }
 
     // From the applicable discount, get discount that matches most to the case (tag name)
-    final List<Discount> matchingDiscounts = findDiscountsMatchingPatriciaCase(
+    return findDiscountsMatchingPatriciaCase(
         applicableDiscounts, patriciaCase
     );
-
-    if (!matchingDiscounts.isEmpty()) {
-      // return the discounts matching the most to the case
-      return matchingDiscounts;
-    } else {
-      // return the general discount with highest priority
-      return filterDiscountsByHighestPriority(applicableDiscounts);
-    }
   }
 
   public static BigDecimal calculateTotalCharge(List<Discount> discounts,
                                                 BigDecimal durationInHours,
                                                 BigDecimal hourlyRate) {
+    if (BigDecimal.ZERO.compareTo(hourlyRate) == 0) {
+      return BigDecimal.ZERO;
+    }
     BigDecimal amount = durationInHours.multiply(hourlyRate);
     List<Discount> discountsSortedByAmount = new ArrayList<>(discounts);
     discountsSortedByAmount.sort(Collections.reverseOrder(Comparator.comparing(Discount::amount)));
@@ -90,6 +85,10 @@ public class ChargeCalculator {
   }
 
   public static BigDecimal calculateDiscountPercentage(BigDecimal amountWithoutDiscount, BigDecimal amountWithDiscount) {
+    // amount can be zero, if Unit Price was zero
+    if (BigDecimal.ZERO.compareTo(amountWithoutDiscount) == 0) {
+      return BigDecimal.ZERO;
+    }
     return amountWithDiscount
         .subtract(amountWithoutDiscount)
         .divide(amountWithoutDiscount, 5, RoundingMode.HALF_UP)
@@ -196,10 +195,12 @@ public class ChargeCalculator {
   }
 
   private static BigDecimal evaluateDiscountFormula(Discount discountToApply, BigDecimal originalAmount) {
-    return new BigDecimal(new ExpressionBuilder(discountToApply.priceChangeFormula().replace('@', 'x'))
+    return new BigDecimal(new ExpressionBuilder(discountToApply.priceChangeFormula()
+        // change german decimal "," to "." and substitute variable name
+        .replace('@', 'x').replace(',', '.'))
         .variable("x")
         .build()
         .setVariable("x", originalAmount.doubleValue())
-        .evaluate()).setScale(2, BigDecimal.ROUND_HALF_UP);
+        .evaluate());
   }
 }
