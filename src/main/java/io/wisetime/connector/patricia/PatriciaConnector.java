@@ -472,4 +472,9 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     return Optional.empty();
   }
+
+  @Override
+  public void shutdown() {
+    patriciaDao.shutdown();
+  }
 }

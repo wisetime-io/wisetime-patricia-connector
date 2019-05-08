@@ -15,9 +15,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
-import javax.sql.DataSource;
-
 import io.wisetime.connector.Connector;
+import io.wisetime.connector.ConnectorController;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.config.RuntimeConfigKey;
 
@@ -29,10 +28,14 @@ import io.wisetime.connector.config.RuntimeConfigKey;
 public class ConnectorLauncher {
 
   public static void main(final String... args) throws Exception {
-    Connector.builder()
+    ConnectorController connectorController = buildConnectorController();
+    connectorController.start();
+  }
+
+  public static ConnectorController buildConnectorController() {
+    return Connector.builder()
         .withWiseTimeConnector(Guice.createInjector(new PatriciaDbModule()).getInstance(PatriciaConnector.class))
-        .build()
-        .start();
+        .build();
   }
 
   /**
@@ -98,7 +101,7 @@ public class ConnectorLauncher {
       log.info("Connecting to Patricia database at URL: {}, Username: {}", hikariConfig.getJdbcUrl(),
           hikariConfig.getUsername());
 
-      bind(DataSource.class).toInstance(new HikariDataSource(hikariConfig));
+      bind(HikariDataSource.class).toInstance(new HikariDataSource(hikariConfig));
     }
   }
 }

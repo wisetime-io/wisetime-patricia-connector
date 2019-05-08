@@ -8,6 +8,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.inject.Inject;
 
+import com.zaxxer.hikari.HikariDataSource;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -31,7 +33,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nullable;
-import javax.sql.DataSource;
 
 import io.wisetime.generated.connect.UpsertTagRequest;
 
@@ -48,9 +49,11 @@ public class PatriciaDao {
 
   private final Logger log = LoggerFactory.getLogger(PatriciaDao.class);
   private final FluentJdbc fluentJdbc;
+  private final HikariDataSource hikariDataSource;
 
   @Inject
-  PatriciaDao(DataSource dataSource) {
+  PatriciaDao(HikariDataSource dataSource) {
+    this.hikariDataSource = dataSource;
     fluentJdbc = new FluentJdbcBuilder().connectionProvider(dataSource).build();
   }
 
@@ -412,6 +415,10 @@ public class PatriciaDao {
 
   private Query query() {
     return fluentJdbc.query();
+  }
+
+  void shutdown() {
+    hikariDataSource.close();
   }
 
   /**
