@@ -36,7 +36,8 @@ The following configuration options are optional.
 | INVOICE_COMMENT_OVERRIDE             | Optional label to use in time charge/invoice record instead of narrative provided with posted time.                                                                                                                           |
 | DATA_DIR                             | If set, the connector will use the directory as the location for storing data to keep track on the Patricia cases it has synced. By default, WiseTime Connector will create a temporary dir under `/tmp` as its data storage. |
 | TIMEZONE                             | The timezone to use when posting time to Patricia, e.g. `Australia/Perth`. Defaults to `UTC`.                                                                                                                                 |
-| WEBHOOK_PORT                         | If set, the connector will listen to this port e.g. 8090. Defaults to 8080.                                                                                                                                                   |
+| CONNECTOR_MODE                       | If unset, this defaults to `LONG_POLL`: use long polling to fetch posted time. Optional parameters are `WEBHOOK` to start up a server to listen for posted time. `TAG_ONLY` use the connector only to upsert new tags         |
+| WEBHOOK_PORT                         | The connector will listen to this port e.g. 8090, if CONNECTOR_MODE is set to `WEBHOOK`. Defaults to 8080.                                                                                                                    |
 | LOG_LEVEL                            | Define log level. Available values are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR` and `OFF`. Default is `INFO`.                                                                                                               |
 
 
@@ -46,7 +47,6 @@ The easiest way to run the Postgres Connector is using Docker. For example:
 
 ```text
 docker run -d \
-    -p 8080:8080 \
     --restart=unless-stopped \
     -v volume_name:/usr/local/wisetime-connector/data \
     -e DATA_DIR=/usr/local/wisetime-connector/data \
@@ -58,7 +58,7 @@ docker run -d \
     wisetime/patricia-connector
 ```
 
-Note that you may need to change the ports definition here in the docker run command (and similarly any docker-compose.yaml definition) as well as add the WEBHOOK_PORT environment variable if you set the webhook port other than default (8080).
+If you are using `CONNECTOR_MODE=WEBHOOK`: Note that you need to define port forwarding in the docker run command (and similarly any docker-compose.yaml definition). If you set the webhook port other than default (8080) you must also add the WEBHOOK_PORT environment variable to match the docker ports definition.
 
 The Patricia connector runs self-checks to determine whether it is healthy. If health check fails, the connector will shutdown. This gives us a chance to automatically re-initialise the application through the Docker restart policy.
  

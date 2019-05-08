@@ -173,7 +173,7 @@ public class PatriciaDao {
   }
 
   Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
-    Optional<BigDecimal> hourlyRate = query().select(
+    return query().select(
         " SELECT CASE " +
             "  WHEN EXISTS (" +
             "    SELECT wc.work_code_default_amount" +
@@ -199,16 +199,8 @@ public class PatriciaDao {
     )
         .namedParam("login_id", loginId)
         .namedParam("wc_id", workCodeId)
-        .firstResult(rs ->
-            rs.getBigDecimal(1) != null ? rs.getBigDecimal(1) : BigDecimal.ZERO
-        );
-
-    if (hourlyRate.isPresent() && hourlyRate.get().compareTo(BigDecimal.ZERO) > 0) {
-      return hourlyRate;
-    } else {
-      // unit price = 0 means there is no unit price retrieved in DB
-      return Optional.empty();
-    }
+        .filter(Objects::nonNull)
+        .firstResult(rs -> rs.getBigDecimal(1));
   }
 
   List<Discount> findDiscounts(final String workCodeId, final int roleTypeId, final long caseId) {
@@ -245,25 +237,25 @@ public class PatriciaDao {
         .firstResult(this::mapToCase);
   }
 
-  void updateBudgetHeader(final long caseId, final String recordalDate) {
+  long updateBudgetHeader(final long caseId, final String recordalDate) {
     final boolean budgetHeaderExist =
         query().select("SELECT COUNT(*) FROM budget_header WHERE case_id = ?")
             .params(caseId)
             .singleResult(Mappers.singleLong()) > 0;
 
     if (budgetHeaderExist) {
-      query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
+      return query().update("UPDATE budget_header SET budget_edit_date = ? WHERE case_id = ?")
           .params(recordalDate, caseId)
-          .run();
+          .run().affectedRows();
     } else {
-      query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
+      return query().update("INSERT INTO budget_header (case_id, budget_edit_date) VALUES (?, ?)")
           .params(caseId, recordalDate)
-          .run();
+          .run().affectedRows();
     }
   }
 
-  void addTimeRegistration(TimeRegistration timeRegistration) {
-    query().update(
+  long addTimeRegistration(TimeRegistration timeRegistration) {
+    return query().update(
         "INSERT INTO time_registration ("
             + "  work_code_id,"
             + "  case_id,"
@@ -300,11 +292,11 @@ public class PatriciaDao {
         .namedParam("tc", timeRegistration.comment())
         .namedParam("bd", timeRegistration.submissionDate())
         .namedParam("eid", timeRegistration.submissionDate())
-        .run();
+        .run().affectedRows();
   }
 
-  void addBudgetLine(BudgetLine budgetLine) {
-    query().update(
+  long addBudgetLine(BudgetLine budgetLine) {
+    return query().update(
         "INSERT INTO budget_line ("
             + "  b_l_seq_number,"
             + "  work_code_id,"
@@ -332,25 +324,26 @@ public class PatriciaDao {
             + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er"
             + ")"
     )
+        // make sure BigDecimal scales match the DB
         .namedParam("bsn", findNextBudgetLineSeqNum(budgetLine.caseId()))
         .namedParam("wc", budgetLine.workCodeId())
-        .namedParam("dt", budgetLine.chargeableWorkTotalHours())
-        .namedParam("wt", budgetLine.actualWorkTotalHours())
-        .namedParam("upd", budgetLine.effectiveHourlyRate())
-        .namedParam("up", budgetLine.hourlyRate())
+        .namedParam("dt", budgetLine.chargeableWorkTotalHours().setScale(2, BigDecimal.ROUND_HALF_UP))
+        .namedParam("wt", budgetLine.actualWorkTotalHours().setScale(2, BigDecimal.ROUND_HALF_UP))
+        .namedParam("upd", budgetLine.effectiveHourlyRate().setScale(2, BigDecimal.ROUND_HALF_UP))
+        .namedParam("up", budgetLine.hourlyRate().setScale(2, BigDecimal.ROUND_HALF_UP))
         .namedParam("li", budgetLine.userId())
-        .namedParam("ttlblamt", budgetLine.chargeableAmount())
-        .namedParam("ttlbloamt", budgetLine.actualWorkTotalAmount())
+        .namedParam("ttlblamt", budgetLine.chargeableAmount().setScale(2, BigDecimal.ROUND_HALF_UP))
+        .namedParam("ttlbloamt", budgetLine.actualWorkTotalAmount().setScale(2, BigDecimal.ROUND_HALF_UP))
         .namedParam("cid", budgetLine.caseId())
         .namedParam("stc", 1)
         .namedParam("eid", budgetLine.submissionDate())
         .namedParam("tci", budgetLine.comment())
         .namedParam("rd", budgetLine.submissionDate())
-        .namedParam("discperc", budgetLine.discountPercentage())
-        .namedParam("discamt", budgetLine.discountAmount())
+        .namedParam("discperc", budgetLine.discountPercentage().setScale(6, BigDecimal.ROUND_HALF_UP))
+        .namedParam("discamt", budgetLine.discountAmount().setScale(2, BigDecimal.ROUND_HALF_UP))
         .namedParam("cur", budgetLine.currency())
         .namedParam("er", 1)
-        .run();
+        .run().affectedRows();
   }
 
   String getDbDate() {
