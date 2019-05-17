@@ -568,13 +568,9 @@ public class PatriciaDao {
 
     BigDecimal hourlyRate();
 
-    BigDecimal actualHoursNoExpRating();
+    BigDecimal actualHours();
 
-    BigDecimal actualHoursWithExpRating();
-
-    BigDecimal chargeableHoursNoExpRating();
-
-    BigDecimal chargeableHoursWithExpRating();
+    BigDecimal chargeableHours();
 
     LocalDateTime recordalDate();
   }

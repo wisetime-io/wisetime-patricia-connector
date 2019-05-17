@@ -12,11 +12,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.api_client.ApiClient;
-import io.wisetime.connector.api_client.PostResult;
+import io.wisetime.connector.api_client.PostResult.PostResultStatus;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
-import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -85,6 +85,6 @@ class PatriciaConnectorIntegrationTest {
             .experienceWeightingPercent(100))
         .originatingUser(null)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS);
-    assertThat(connector.postTime(null, group)).isEqualTo(PostResult.SUCCESS);
+    assertThat(connector.postTime(null, group).getStatus()).isEqualTo(PostResultStatus.SUCCESS);
   }
 }

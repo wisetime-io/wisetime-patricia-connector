@@ -19,12 +19,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.api_client.ApiClient;
-import io.wisetime.connector.api_client.PostResult;
+import io.wisetime.connector.api_client.PostResult.PostResultStatus;
 import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
-import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.User;
@@ -114,9 +114,9 @@ class PatriciaConnectorPostTimeNarrativeTest {
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     // Verify Time Registration creation
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
@@ -177,9 +177,9 @@ class PatriciaConnectorPostTimeNarrativeTest {
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     // Verify Time Registration creation
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
@@ -231,9 +231,9 @@ class PatriciaConnectorPostTimeNarrativeTest {
         .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegistrationCaptor =
         ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
@@ -270,9 +270,9 @@ class PatriciaConnectorPostTimeNarrativeTest {
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     // Verify Time Registration creation
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
