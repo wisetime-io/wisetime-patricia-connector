@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
-import io.wisetime.connector.Connector;
 import io.wisetime.connector.ConnectorController;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.config.RuntimeConfigKey;
@@ -33,7 +32,7 @@ public class ConnectorLauncher {
   }
 
   public static ConnectorController buildConnectorController() {
-    return Connector.builder()
+    return ConnectorController.newBuilder()
         .withWiseTimeConnector(Guice.createInjector(new PatriciaDbModule()).getInstance(PatriciaConnector.class))
         .build();
   }
@@ -54,6 +53,7 @@ public class ConnectorLauncher {
     DEFAULT_MODIFIER("DEFAULT_MODIFIER"),
 
     //optional
+    WORK_CODES_ZERO_CHARGE("WORK_CODES_ZERO_CHARGE"),
     TAG_UPSERT_PATH("TAG_UPSERT_PATH"),
     TAG_UPSERT_BATCH_SIZE("TAG_UPSERT_BATCH_SIZE"),
     TIMEZONE("TIMEZONE"),

@@ -28,19 +28,20 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import io.wisetime.connector.ConnectorModule;
+import io.wisetime.connector.WiseTimeConnector;
 import io.wisetime.connector.api_client.ApiClient;
 import io.wisetime.connector.api_client.PostResult;
 import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
-import io.wisetime.connector.integrate.ConnectorModule;
-import io.wisetime.connector.integrate.WiseTimeConnector;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
 import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.connector.template.TemplateFormatterConfig;
@@ -78,6 +79,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private String defaultModifier;
   private Map<String, String> modifierWorkCodeMap;
+  private Set<String> zeroChargeWorkCodes;
   private int roleTypeId;
 
   @Inject
@@ -170,25 +172,25 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     Optional<String> callerKeyOpt = callerKey();
     if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
-      return PostResult.PERMANENT_FAILURE.withMessage("Invalid caller key in post time webhook call");
+      return PostResult.PERMANENT_FAILURE().withMessage("Invalid caller key in post time webhook call");
     }
 
     if (userPostedTime.getTags().isEmpty()) {
-      return PostResult.SUCCESS.withMessage("Time group has no tags. There is nothing to post to Patricia.");
+      return PostResult.SUCCESS().withMessage("Time group has no tags. There is nothing to post to Patricia.");
     }
 
     if (userPostedTime.getTimeRows().isEmpty()) {
-      return PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows");
+      return PostResult.PERMANENT_FAILURE().withMessage("Cannot post time group with no time rows");
     }
 
     final Optional<String> workCode = getTimeGroupWorkCode(userPostedTime.getTimeRows());
     if (!workCode.isPresent()) {
-      return PostResult.PERMANENT_FAILURE.withMessage("Time group contains invalid modifier.");
+      return PostResult.PERMANENT_FAILURE().withMessage("Time group contains invalid modifier.");
     }
 
     final Optional<String> user = getPatriciaLoginId(userPostedTime.getUser());
     if (!user.isPresent()) {
-      return PostResult.PERMANENT_FAILURE.withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
+      return PostResult.PERMANENT_FAILURE().withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
@@ -201,23 +203,30 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
     if (!hourlyRate.isPresent()) {
-      return PostResult.PERMANENT_FAILURE.withMessage("No hourly rate is found for " + user.get());
+      return PostResult.PERMANENT_FAILURE().withMessage("No hourly rate is found for " + user.get());
     }
 
     final Optional<LocalDateTime> activityStartTime = startTime(userPostedTime);
     if (!activityStartTime.isPresent()) {
-      return PostResult.PERMANENT_FAILURE.withMessage("Cannot post time group with no time rows");
+      return PostResult.PERMANENT_FAILURE().withMessage("Cannot post time group with no time rows");
+    }
+
+    // If we recognize a zero charge work code: Set chargeable amount to 0 and let the calculation run as usual
+    if (zeroChargeWorkCodes.contains(workCode.get())) {
+      userPostedTime.totalDurationSecs(0);
     }
 
     final BigDecimal actualWorkedHoursPerCase =
         ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(userPostedTime);
-    final BigDecimal actualWorkedHoursWithExpRatingPerCase =
-        ChargeCalculator.calculateActualWorkedHoursWithExpRatingPerCase(userPostedTime);
 
-    final BigDecimal chargeableHoursPerCase =
-        ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(userPostedTime);
-    final BigDecimal chargeableHoursWithExpRatingPerCase =
-        ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
+    final BigDecimal chargeableHoursPerCase;
+    if (ChargeCalculator.wasTotalDurationEdited(userPostedTime)) {
+      // time was edited -> use the edited time as is (no exp rating)
+      chargeableHoursPerCase = ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(userPostedTime);
+    } else {
+      // time was not edited -> use the experience rating
+      chargeableHoursPerCase = ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
+    }
 
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
 
@@ -233,10 +242,8 @@ public class PatriciaConnector implements WiseTimeConnector {
             .timeRegComment(timeRegComment)
             .chargeComment(chargeComment)
             .hourlyRate(hourlyRate.get())
-            .actualHoursNoExpRating(actualWorkedHoursPerCase)
-            .actualHoursWithExpRating(actualWorkedHoursWithExpRatingPerCase)
-            .chargeableHoursNoExpRating(chargeableHoursPerCase)
-            .chargeableHoursWithExpRating(chargeableHoursWithExpRatingPerCase)
+            .actualHours(actualWorkedHoursPerCase)
+            .chargeableHours(chargeableHoursPerCase)
             .recordalDate(activityStartTime.get())
             .build()
     );
@@ -255,11 +262,11 @@ public class PatriciaConnector implements WiseTimeConnector {
       );
     } catch (RuntimeException e) {
       log.warn("Failed to save posted time in Patricia", e);
-      return PostResult.TRANSIENT_FAILURE
+      return PostResult.TRANSIENT_FAILURE()
           .withError(e)
           .withMessage("There was an error posting time to the Patricia database");
     }
-    return PostResult.SUCCESS;
+    return PostResult.SUCCESS();
   }
 
   private void initializeModifiers() {
@@ -287,6 +294,12 @@ public class PatriciaConnector implements WiseTimeConnector {
                 modifierWorkCodePair -> modifierWorkCodePair[0],
                 modifierWorkCodePair -> modifierWorkCodePair[1])
             );
+
+    zeroChargeWorkCodes = Arrays.stream(
+        RuntimeConfig.getString(PatriciaConnectorConfigKey.WORK_CODES_ZERO_CHARGE).orElse("").split(","))
+        .map(String::trim)
+        .filter(workCode -> !workCode.isEmpty())
+        .collect(Collectors.toSet());
 
     Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
         "Patricia modifiers mapping should include work code for default modifier");
@@ -339,10 +352,9 @@ public class PatriciaConnector implements WiseTimeConnector {
     );
     final List<Discount> applicableDiscounts = ChargeCalculator.getMostApplicableDiscounts(discounts, params.patriciaCase());
 
-    BigDecimal actualWorkTotalAmount = params.chargeableHoursNoExpRating().multiply(params.hourlyRate());
-    BigDecimal chargeWithoutDiscount = params.chargeableHoursWithExpRating().multiply(params.hourlyRate());
+    BigDecimal chargeWithoutDiscount = params.chargeableHours().multiply(params.hourlyRate());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
-        applicableDiscounts, params.chargeableHoursWithExpRating(), params.hourlyRate()
+        applicableDiscounts, params.chargeableHours(), params.hourlyRate()
     );
 
     final int budgetLineSequenceNumber = patriciaDao.findNextBudgetLineSeqNum(params.patriciaCase().caseId());
@@ -355,13 +367,13 @@ public class PatriciaConnector implements WiseTimeConnector {
         .submissionDate(dbDate)
         .currency(currency)
         .hourlyRate(params.hourlyRate())
-        .actualWorkTotalHours(params.actualHoursWithExpRating())
-        .chargeableWorkTotalHours(params.chargeableHoursWithExpRating())
+        .actualWorkTotalHours(params.actualHours())
+        .chargeableWorkTotalHours(params.chargeableHours())
         .chargeableAmount(chargeWithDiscount)
-        .actualWorkTotalAmount(actualWorkTotalAmount)
+        .actualWorkTotalAmount(chargeWithoutDiscount)
         .discountAmount(ChargeCalculator.calculateDiscountAmount(chargeWithoutDiscount, chargeWithDiscount))
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
-        .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHoursWithExpRating()))
+        .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHours()))
         .comment(params.chargeComment())
         .build();
 
@@ -374,8 +386,8 @@ public class PatriciaConnector implements WiseTimeConnector {
         .activityDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
             .withZoneSameInstant(getTimeZoneId())
             .format(DATE_TIME_FORMATTER))
-        .actualHours(params.actualHoursNoExpRating())
-        .chargeableHours(params.chargeableHoursNoExpRating())
+        .actualHours(params.actualHours())
+        .chargeableHours(params.chargeableHours())
         .comment(params.timeRegComment())
         .build();
 

@@ -6,6 +6,14 @@
  <#return rowTotalDuration />
 </#function>
 
+<#function getTotalDurationSecsPerTag>
+ <#local totalDurationSecs = getTotalDurationSecs()>
+ <#if getDurationSplitStrategy() == "DIVIDE_BETWEEN_TAGS" && (getTags()?size > 1)>
+  <#local totalDurationSecs /= getTags()?size>
+ </#if>
+ <#return totalDurationSecs />
+</#function>
+
 <#function getSegmentHourBlocks timeRows>
  <#local segmentHours = []>
  <#list timeRows as timeRow>
