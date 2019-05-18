@@ -51,7 +51,7 @@ services:
       TAG_MODIFIER_WORK_CODE_MAPPING: "A1:101,B2:102,C3:103"
       DEFAULT_MODIFIER: A1
       
-      # activity types listed will be assigned 0:00 chargeable time in Patricia in addition to a 0 amount when posted.
+      # work codes listed will be assigned 0:00 chargeable time in Patricia in addition to a 0 amount when posted.
       # WORK_CODES_ZERO_CHARGE: 
 
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
