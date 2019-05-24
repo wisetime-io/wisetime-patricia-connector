@@ -248,6 +248,9 @@ public class PatriciaConnector implements WiseTimeConnector {
             .build()
     );
 
+    log.info("Posted time after modification: {}",
+        Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
+
     try {
       patriciaDao.asTransaction(() ->
           userPostedTime
@@ -300,6 +303,8 @@ public class PatriciaConnector implements WiseTimeConnector {
         .map(String::trim)
         .filter(workCode -> !workCode.isEmpty())
         .collect(Collectors.toSet());
+
+    log.info("List of zero charge work codes: {}", String.join(",", zeroChargeWorkCodes));
 
     Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
         "Patricia modifiers mapping should include work code for default modifier");
