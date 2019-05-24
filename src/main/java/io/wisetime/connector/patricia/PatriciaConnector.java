@@ -406,7 +406,8 @@ public class PatriciaConnector implements WiseTimeConnector {
     log.debug("Inserted {} time registration entries for Patricia issue {} on behalf of {}",
         numberOfTimeRegistrationsInserted, params.patriciaCase().caseNumber(), params.userId());
 
-    log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
+    log.info("Posted time to Patricia issue {} on behalf of {}: {}", params.patriciaCase().caseNumber(), params.userId(),
+        Base64.getEncoder().encodeToString(params.toString().getBytes()));
   }
 
   private TemplateFormatter createTemplateFormatter(String getTemplatePath) {
