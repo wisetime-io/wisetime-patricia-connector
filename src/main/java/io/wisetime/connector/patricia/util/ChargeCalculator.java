@@ -6,10 +6,8 @@ package io.wisetime.connector.patricia.util;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import net.objecthunter.exp4j.ExpressionBuilder;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.objecthunter.exp4j.ExpressionBuilder;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -33,8 +31,6 @@ import static io.wisetime.connector.patricia.PatriciaDao.Discount;
  * @author alvin.llobrera@practiceinsight.io
  */
 public class ChargeCalculator {
-
-  private static final Logger log = LoggerFactory.getLogger(ChargeCalculator.class);
 
   public static final int DISCOUNT_TYPE_PURE = 1;
   public static final int DISCOUNT_TYPE_MARKUP = 2;
