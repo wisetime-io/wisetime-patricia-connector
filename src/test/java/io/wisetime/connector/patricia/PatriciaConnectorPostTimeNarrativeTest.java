@@ -157,9 +157,9 @@ class PatriciaConnectorPostTimeNarrativeTest {
   @Test
   void divide_between_tags_edited() {
     final TimeRow earliestTimeRow = FAKE_ENTITIES.randomTimeRow()
-        .modifier("").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
+        .activityTypeCode("DM").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
     final TimeRow latestTimeRow = FAKE_ENTITIES.randomTimeRow()
-        .modifier("").activityHour(2019031810).firstObservedInHour(8).durationSecs(1000);
+        .activityTypeCode("DM").activityHour(2019031810).firstObservedInHour(8).durationSecs(1000);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 

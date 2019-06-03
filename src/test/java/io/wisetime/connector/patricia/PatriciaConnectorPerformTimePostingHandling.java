@@ -64,7 +64,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
 
   private static final String ZERO_CHARGE_WORK_CODES = " zero1 ,zero2 ,";
-  private static final String ZERO_CHARGE_WORK_MODIFIER = "zero1Modifier";
   private static final String ACTIVITY_TYPE_CODE = "DM";
 
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
@@ -437,12 +436,18 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
 
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121).modifier("").durationSecs(600)
-        .firstObservedInHour(0);
-    timeRow1.setDescription(FAKER.lorem().characters());
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110122).modifier("").durationSecs(300)
-        .firstObservedInHour(0);
-    timeRow2.setDescription(FAKER.lorem().characters());
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110121)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(600)
+        .firstObservedInHour(0)
+        .description(FAKER.lorem().characters());
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110122)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(300)
+        .firstObservedInHour(0)
+        .description(FAKER.lorem().characters());
 
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 
@@ -546,12 +551,17 @@ class PatriciaConnectorPerformTimePostingHandling {
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
 
-    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121).modifier(ZERO_CHARGE_WORK_MODIFIER)
-        .durationSecs(600).firstObservedInHour(0);
-    timeRow1.setDescription(FAKER.lorem().characters());
-    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110122).modifier(ZERO_CHARGE_WORK_MODIFIER)
-        .durationSecs(300).firstObservedInHour(0);
-    timeRow2.setDescription(FAKER.lorem().characters());
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121)
+        .activityTypeCode("zero1")
+        .durationSecs(600)
+        .firstObservedInHour(0)
+        .description(FAKER.lorem().characters());
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110122)
+        .activityTypeCode("zero1")
+        .durationSecs(300)
+        .firstObservedInHour(0)
+        .description(FAKER.lorem().characters());
 
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
 

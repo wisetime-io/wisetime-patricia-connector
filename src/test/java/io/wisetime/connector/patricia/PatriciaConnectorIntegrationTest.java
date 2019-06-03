@@ -73,7 +73,7 @@ class PatriciaConnectorIntegrationTest {
             .firstObservedInHour(35)
             .durationSecs(92)
             .submittedDate(20190506092424416L)
-            .setActivityTypeCode("T120")
+            .activityTypeCode("T120")
             .source(TimeRow.SourceEnum.WT_DESKTOP)))
         .user(new User()
             .name("PI Demo")
