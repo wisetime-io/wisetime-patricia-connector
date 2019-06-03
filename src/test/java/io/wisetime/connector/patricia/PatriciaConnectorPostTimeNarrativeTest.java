@@ -19,12 +19,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.api_client.ApiClient;
-import io.wisetime.connector.api_client.PostResult;
+import io.wisetime.connector.api_client.PostResult.PostResultStatus;
 import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
-import io.wisetime.connector.integrate.ConnectorModule;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
 import io.wisetime.generated.connect.User;
@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 /**
  * @author alvin.llobrera@practiceinsight.io
  */
-public class PatriciaConnectorPostTimeNarrativeTest {
+class PatriciaConnectorPostTimeNarrativeTest {
 
   private static final Faker FAKER = new Faker();
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
@@ -105,14 +105,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
         .timeRows(ImmutableList.of(earliestTimeRow, latestTimeRow))
         .user(user)
-        .totalDurationSecs(1500)
+        .totalDurationSecs(4006)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     // Verify Time Registration creation
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
@@ -126,7 +126,12 @@ public class PatriciaConnectorPostTimeNarrativeTest {
             "\r\n16:00 - 16:59\n" +
             "- 50m 6s - " + earliestTimeRow.getActivity() + " - " + earliestTimeRow.getDescription() + "\n" +
             "\r\n18:00 - 18:59\n" +
-            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription());
+            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription())
+        .contains("\r\nTotal Worked Time: 1h 6m 46s\n" +
+            "Total Chargeable Time: 16m 42s")
+        .contains("The chargeable time has been weighed based on an experience factor of 50%.")
+        .endsWith("\r\nThe above times have been split across 2 cases and are thus greater than " +
+            "the chargeable time in this case");
     assertThat(timeRegCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for time registration.")
         .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
@@ -143,13 +148,69 @@ public class PatriciaConnectorPostTimeNarrativeTest {
             "\r\n16:00 - 16:59\n" +
             "- 50m 6s - " + earliestTimeRow.getActivity() + " - " + earliestTimeRow.getDescription() + "\n" +
             "\r\n18:00 - 18:59\n" +
-            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription()
-        )
+            "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription());
+    assertThat(budgetLineCaptor.getAllValues().get(0).comment())
+        .as("narrative for all tags should be the same for budget line.")
+        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
+  }
+
+  @Test
+  void divide_between_tags_edited() {
+    final TimeRow earliestTimeRow = FAKE_ENTITIES.randomTimeRow()
+        .modifier("").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
+    final TimeRow latestTimeRow = FAKE_ENTITIES.randomTimeRow()
+        .modifier("").activityHour(2019031810).firstObservedInHour(8).durationSecs(1000);
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(earliestTimeRow, latestTimeRow))
+        .user(user)
+        .totalDurationSecs(3600)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResultStatus.SUCCESS);
+
+    // Verify Time Registration creation
+    ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    assertThat(timeRegCaptor.getAllValues().get(0).comment())
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(timeRegCaptor.getValue().comment())
+        .as("should include time row details with start time converted in configured time zone")
+        .contains(
+            "\r\n16:00 - 16:59\n" +
+                "- 50m 6s - " + earliestTimeRow.getActivity() + " - " + earliestTimeRow.getDescription() + "\n" +
+                "\r\n18:00 - 18:59\n" +
+                "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription())
         .contains("\r\nTotal Worked Time: 1h 6m 46s\n" +
-            "Total Chargeable Time: 25m\n" +
-            "Experience Weighting: 50%")
+            "Total Chargeable Time: 30m")
+        .doesNotContain("The chargeable time has been weighed based on an experience factor")
         .endsWith("\r\nThe above times have been split across 2 cases and are thus greater than " +
             "the chargeable time in this case");
+    assertThat(timeRegCaptor.getAllValues().get(0).comment())
+        .as("narrative for all tags should be the same for time registration.")
+        .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
+
+    // Verify Budget Line creation
+    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
+    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    assertThat(budgetLineCaptor.getAllValues().get(0).comment())
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(budgetLineCaptor.getValue().comment())
+        .as("should include time row details with start time converted in configured time zone")
+        .contains(
+            "\r\n16:00 - 16:59\n" +
+                "- 50m 6s - " + earliestTimeRow.getActivity() + " - " + earliestTimeRow.getDescription() + "\n" +
+                "\r\n18:00 - 18:59\n" +
+                "- 16m 40s - " + latestTimeRow.getActivity() + " - " + latestTimeRow.getDescription());
     assertThat(budgetLineCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for budget line.")
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
@@ -170,14 +231,14 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
         .timeRows(ImmutableList.of(timeRow))
         .user(user)
-        .totalDurationSecs(300)
+        .totalDurationSecs(120)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     // Verify Time Registration creation
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
@@ -189,7 +250,10 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .as("should include time row details with start time converted in configured time zone")
         .contains(
             "\r\n21:00 - 21:59\n" +
-            "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription());
+            "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription())
+        .doesNotContain("weighed based on an experience factor")
+        .endsWith("\r\nTotal Worked Time: 2m\n" +
+            "Total Chargeable Time: 2m");
     assertThat(timeRegCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for time registration.")
         .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
@@ -206,10 +270,65 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .contains(
             "\r\n21:00 - 21:59\n" +
             "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription());
-    assertThat(budgetLineComment)
+    assertThat(budgetLineCaptor.getAllValues().get(0).comment())
+        .as("narrative for all tags should be the same for budget line.")
+        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
+  }
+
+  @Test
+  void whole_duration_for_each_tag_edited() {
+    final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
+        .modifier("")
+        .activityHour(2016050113)
+        .firstObservedInHour(7)
+        .durationSecs(120)
+        .description(FAKER.superhero().descriptor());
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow))
+        .user(user)
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResultStatus.SUCCESS);
+
+    // Verify Time Registration creation
+    ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    assertThat(timeRegCaptor.getAllValues().get(0).comment())
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(timeRegCaptor.getValue().comment())
+        .as("should include time row details with start time converted in configured time zone")
+        .contains(
+            "\r\n21:00 - 21:59\n" +
+                "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription())
+        .doesNotContain("weighed based on an experience factor")
         .endsWith("\r\nTotal Worked Time: 2m\n" +
-            "Total Chargeable Time: 5m\n" +
-            "Experience Weighting: 100%");
+            "Total Chargeable Time: 5m");
+    assertThat(timeRegCaptor.getAllValues().get(0).comment())
+        .as("narrative for all tags should be the same for time registration.")
+        .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
+
+    // Verify Budget Line creation
+    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
+    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    final String budgetLineComment = budgetLineCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineComment)
+        .as("should use template if `INVOICE_COMMENT_OVERRIDE` env variable is not set")
+        .startsWith(timeGroup.getDescription());
+    assertThat(budgetLineComment)
+        .as("should include time row details with start time converted in configured time zone")
+        .contains(
+            "\r\n21:00 - 21:59\n" +
+                "- 2m - " + timeRow.getActivity() + " - " + timeRow.getDescription());
     assertThat(budgetLineCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for budget line.")
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
@@ -231,24 +350,25 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
-    ArgumentCaptor<PatriciaDao.BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(PatriciaDao.BudgetLine.class);
-    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
-    final String budgetLineCommentForCase1 = budgetLineCaptor.getAllValues().get(0).comment();
+    ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegistrationCaptor =
+        ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegistrationCaptor.capture());
+    final String budgetLineCommentForCase1 = timeRegistrationCaptor.getAllValues().get(0).comment();
     assertThat(budgetLineCommentForCase1)
         .as("should display narrative only")
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
         .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
-        .endsWith("Total Worked Time: 12m\n" +
-            "Total Chargeable Time: 5m\n" +
-            "Experience Weighting: 100%");
+        // No summary block if NARRATIVE_ONLY
+        .doesNotContain("Total Worked Time:")
+        .doesNotContain("Total Chargeable Time: 5m");
     assertThat(budgetLineCommentForCase1)
         .as("comment for the other case should be the same")
-        .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());
+        .isEqualTo(timeRegistrationCaptor.getAllValues().get(1).comment());
   }
 
   @Test
@@ -273,9 +393,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .narrativeType(TimeGroup.NarrativeTypeEnum.AND_TIME_ROW_ACTIVITY_DESCRIPTIONS);
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
-    assertThat(connector.postTime(mock(Request.class), timeGroup))
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
         .as("Valid time group should be posted successfully")
-        .isEqualTo(PostResult.SUCCESS);
+        .isEqualTo(PostResultStatus.SUCCESS);
 
     // Verify Time Registration creation
     ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
@@ -288,7 +408,9 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .contains(
             "\n\r\n17:00 - 17:59" +
             "\n- 2m - Thinking - No window title available" +
-            "\n- 3m 1s - Videocall - No window title available");
+            "\n- 3m 1s - Videocall - No window title available")
+        .endsWith("\nTotal Worked Time: 5m 1s\n" +
+            "Total Chargeable Time: 5m");
     assertThat(timeRegCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for time registration.")
         .isEqualTo(timeRegCaptor.getAllValues().get(1).comment());
@@ -305,11 +427,7 @@ public class PatriciaConnectorPostTimeNarrativeTest {
         .contains(
             "\n\r\n17:00 - 17:59" +
             "\n- 2m - Thinking - No window title available" +
-            "\n- 3m 1s - Videocall - No window title available"
-        )
-        .endsWith("\nTotal Worked Time: 5m 1s\n" +
-            "Total Chargeable Time: 5m\n" +
-            "Experience Weighting: 100%");
+            "\n- 3m 1s - Videocall - No window title available");
     assertThat(budgetLineCaptor.getAllValues().get(0).comment())
         .as("narrative for all tags should be the same for budget line.")
         .isEqualTo(budgetLineCaptor.getAllValues().get(1).comment());

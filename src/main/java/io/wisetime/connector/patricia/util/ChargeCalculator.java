@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import io.wisetime.connector.utils.DurationCalculator;
 import io.wisetime.connector.utils.DurationSource;
 import io.wisetime.generated.connect.TimeGroup;
+import io.wisetime.generated.connect.TimeRow;
 
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.Discount;
@@ -96,6 +97,10 @@ public class ChargeCalculator {
   }
 
   public static BigDecimal calculateHourlyRate(BigDecimal totalCharge, BigDecimal durationInHours) {
+    // duration in hours can be zero, if set to be in the console or using zero amount work code
+    if (BigDecimal.ZERO.compareTo(durationInHours) == 0) {
+      return BigDecimal.ZERO;
+    }
     return totalCharge.divide(durationInHours, 2, RoundingMode.HALF_UP);
   }
 
@@ -139,6 +144,12 @@ public class ChargeCalculator {
             .calculate()
             .getPerTagDuration()
     );
+  }
+
+  public static boolean wasTotalDurationEdited(TimeGroup userPostedTimeGroup) {
+    // check if user edited the total time by comparing the total time to the sum of the time on each row
+    return !userPostedTimeGroup.getTotalDurationSecs()
+        .equals(userPostedTimeGroup.getTimeRows().stream().mapToInt(TimeRow::getDurationSecs).sum());
   }
 
   private static BigDecimal toHours(long durationSecs) {

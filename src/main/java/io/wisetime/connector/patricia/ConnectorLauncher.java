@@ -33,7 +33,7 @@ public class ConnectorLauncher {
   }
 
   public static ConnectorController buildConnectorController() {
-    return Connector.builder()
+    return ConnectorController.newBuilder()
         .withWiseTimeConnector(Guice.createInjector(new PatriciaDbModule()).getInstance(PatriciaConnector.class))
         .build();
   }
@@ -52,6 +52,7 @@ public class ConnectorLauncher {
     PATRICIA_ROLE_TYPE_ID("PATRICIA_ROLE_TYPE_ID"),
 
     //optional
+    WORK_CODES_ZERO_CHARGE("WORK_CODES_ZERO_CHARGE"),
     TAG_UPSERT_PATH("TAG_UPSERT_PATH"),
     TAG_UPSERT_BATCH_SIZE("TAG_UPSERT_BATCH_SIZE"),
     TIMEZONE("TIMEZONE"),
