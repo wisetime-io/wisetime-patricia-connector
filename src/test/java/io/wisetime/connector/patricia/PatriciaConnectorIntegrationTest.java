@@ -43,8 +43,6 @@ class PatriciaConnectorIntegrationTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_JDBC_URL, "<change-me>");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_JDBC_USERNAME, "<change-me>");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_JDBC_PASSWORD, "<change-me>");
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.DEFAULT_MODIFIER, "<change-me>");
-    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING, "<change-me>");
 
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "5");
@@ -75,7 +73,7 @@ class PatriciaConnectorIntegrationTest {
             .firstObservedInHour(35)
             .durationSecs(92)
             .submittedDate(20190506092424416L)
-            .modifier("Miscellaneous")
+            .activityTypeCode("T120")
             .source(TimeRow.SourceEnum.WT_DESKTOP)))
         .user(new User()
             .name("PI Demo")

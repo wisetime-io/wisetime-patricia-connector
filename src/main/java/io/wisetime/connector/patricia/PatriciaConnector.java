@@ -26,7 +26,6 @@ import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -77,8 +76,6 @@ public class PatriciaConnector implements WiseTimeConnector {
   private TemplateFormatter timeRegistrationTemplate;
   private TemplateFormatter chargeTemplate;
 
-  private String defaultModifier;
-  private Map<String, String> modifierWorkCodeMap;
   private Set<String> zeroChargeWorkCodes;
   private int roleTypeId;
 
@@ -89,7 +86,11 @@ public class PatriciaConnector implements WiseTimeConnector {
   public void init(final ConnectorModule connectorModule) {
     Preconditions.checkArgument(patriciaDao.hasExpectedSchema(),
         "Patricia Database schema is unsupported by this connector");
-    initializeModifiers();
+    zeroChargeWorkCodes = Arrays.stream(
+        RuntimeConfig.getString(PatriciaConnectorConfigKey.WORK_CODES_ZERO_CHARGE).orElse("").split(","))
+        .map(String::trim)
+        .filter(workCode -> !workCode.isEmpty())
+        .collect(Collectors.toSet());
     initializeRoleTypeId();
 
     this.timeRegistrationTemplate = createTemplateFormatter(
@@ -272,59 +273,21 @@ public class PatriciaConnector implements WiseTimeConnector {
     return PostResult.SUCCESS();
   }
 
-  private void initializeModifiers() {
-    defaultModifier = RuntimeConfig.getString(PatriciaConnectorConfigKey.DEFAULT_MODIFIER)
-        .orElseThrow(() -> new IllegalStateException("Required configuration param DEFAULT_MODIFIER is not set."));
-
-    modifierWorkCodeMap =
-        Arrays.stream(
-            RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_MODIFIER_WORK_CODE_MAPPING)
-                .orElseThrow(() ->
-                    new IllegalStateException(
-                        "Required configuration param TAG_MODIFIER_PATRICIA_WORK_CODE_MAPPINGS is not set."
-                    )
-                )
-                .split(","))
-            .map(tagModifierMapping -> {
-              String[] modifierAndWorkCode = tagModifierMapping.trim().split(":");
-              if (modifierAndWorkCode.length != 2) {
-                throw new IllegalStateException("Invalid patricia modifier to work code mapping. "
-                    + "Expecting modifier:workCode, got: " + tagModifierMapping);
-              }
-              return modifierAndWorkCode;
-            })
-            .collect(Collectors.toMap(
-                modifierWorkCodePair -> modifierWorkCodePair[0],
-                modifierWorkCodePair -> modifierWorkCodePair[1])
-            );
-
-    zeroChargeWorkCodes = Arrays.stream(
-        RuntimeConfig.getString(PatriciaConnectorConfigKey.WORK_CODES_ZERO_CHARGE).orElse("").split(","))
-        .map(String::trim)
-        .filter(workCode -> !workCode.isEmpty())
-        .collect(Collectors.toSet());
-
-    log.info("List of zero charge work codes: {}", String.join(",", zeroChargeWorkCodes));
-
-    Preconditions.checkArgument(modifierWorkCodeMap.containsKey(defaultModifier),
-        "Patricia modifiers mapping should include work code for default modifier");
-  }
-
   private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {
     final List<String> workCodes = timeRows.stream()
-        .map(TimeRow::getModifier)
-        .map(modifier -> StringUtils.defaultIfEmpty(modifier, defaultModifier))
+        .map(TimeRow::getActivityTypeCode)
         .distinct()
-        .map(modifierWorkCodeMap::get)
         .collect(Collectors.toList());
-    if (workCodes.size() != 1) {
-      log.error(
-          "All time logs within time group should have same modifier, but got: {}",
-          timeRows.stream().map(TimeRow::getModifier).distinct().collect(Collectors.toList())
-      );
+    if (workCodes.isEmpty()) {
       return Optional.empty();
     }
-    return Optional.of(workCodes.get(0));
+    if (workCodes.size() > 1) {
+      log.error("All time logs within time group should have same modifier, but got: {}", workCodes);
+      return Optional.empty();
+    }
+    return workCodes.stream()
+        .filter(StringUtils::isNotEmpty)
+        .findAny();
   }
 
   private Optional<String> callerKey() {
