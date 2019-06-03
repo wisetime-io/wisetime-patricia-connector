@@ -25,9 +25,6 @@ Configuration is done through environment variables. The following configuration
 | PATRICIA_JDBC_USERNAME                    | The username of the Patricia DB                                          |
 | PATRICIA_JDBC_PASSWORD                    | The password of the Patricia DB                                          |
 | PATRICIA_ROLE_TYPE_ID                     | The role type id from patricia database                                  |
-| TAG_MODIFIER_WORK_CODE_MAPPING            | Work code mapping with modifier name as key and work code id as value    |
-| DEFAULT_MODIFIER                          | The default modifier to use when it is not explicitly in posted time.    |
-
 
 The following configuration options are optional.
 
@@ -59,24 +56,12 @@ docker run -d \
     -e PATRICIA_JDBC_USERNAME=YourPatriciaDbUsername \
     -e PATRICIA_JDBC_PASSWORD=YourPatriciaDbPassword \
     -e PATRICIA_ROLE_TYPE_ID=YourPatriciaRoleTypeId \
-    -e TAG_MODIFIER_WORK_CODE_MAPPING=modifier_name_1:work_code_id_1,modifier_name_1:work_code_id_2 \
-    -e DEFAULT_MODIFIER=modifier_name_1 \
     wisetime/patricia-connector
 ```
 
 If you are using `CONNECTOR_MODE=WEBHOOK`: Note that you need to define port forwarding in the docker run command (and similarly any docker-compose.yaml definition). If you set the webhook port other than default (8080) you must also add the WEBHOOK_PORT environment variable to match the docker ports definition.
 
 The Patricia connector runs self-checks to determine whether it is healthy. If health check fails, the connector will shutdown. This gives us a chance to automatically re-initialise the application through the Docker restart policy.
-
-## Modifier and Work Code ID Mapping
-When posting time in WiseTime Console, user can specify a modifier. This modifier corresponds to a Work Code in Patricia.
-To specify which work code should be used for a modifier, we need to set it on the `TAG_MODIFIER_WORK_CODE_MAPPING` environment variable.
-
-Notes:
-1. Modifiers are not case sensitive (e.g. "Training" is equal to "TRAINING").
-2. Trailing and leading spaces in modifiers are disregarded (e.g. " Research " is equal to "Research")
-3. For multi-word modifier, spaces in between words are supported (e.g. "Client Meeting"). Thus, "Client Meeting" is 
-considered as a different modifier to "ClientMeeting" 
  
 ## Patricia Role Type ID
 To know the correct role type id to use, run this query on Patricia DB:  

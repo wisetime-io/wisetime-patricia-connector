@@ -33,8 +33,8 @@ public class FakeEntities {
     return randomTimeGroup(FAKER.lorem().word());
   }
 
-  public TimeGroup randomTimeGroup(String modifier) {
-    final List<TimeRow> timeRows = randomEntities(() -> randomTimeRow(modifier), 1, 10);
+  public TimeGroup randomTimeGroup(String activityTypeCode) {
+    final List<TimeRow> timeRows = randomEntities(() -> randomTimeRow(activityTypeCode), 1, 10);
 
     return new TimeGroup()
         .callerKey(FAKER.bothify("#?#?#?#?#?"))
@@ -75,7 +75,7 @@ public class FakeEntities {
     return randomTimeRow(FAKER.lorem().word());
   }
 
-  public TimeRow randomTimeRow(String modifier) {
+  public TimeRow randomTimeRow(String activityTypeCode) {
     return new TimeRow()
         .activity(FAKER.lorem().characters(30, 100))
         .description(FAKER.superhero().descriptor())
@@ -83,7 +83,7 @@ public class FakeEntities {
         .firstObservedInHour(Integer.valueOf(FAKER.numerify("2#")))
         .durationSecs(FAKER.random().nextInt(120, 600))
         .submittedDate(Long.valueOf(FAKER.numerify("2018091#1#5#2####"))) // yyyyMMddHHmmssSSS
-        .modifier(modifier)
+        .activityTypeCode(activityTypeCode)
         .source(randomEnum(TimeRow.SourceEnum.class));
   }
 
