@@ -107,7 +107,7 @@ public class ConnectorLauncher {
     }
 
     /**
-     * return Jdbc url with excluded sensitive information (password, params etc).
+     * return Return database connection info, excluding sensitive information (e.g. password).
      */
     @VisibleForTesting
     String formatForLogging(String jdbcUrl) {
