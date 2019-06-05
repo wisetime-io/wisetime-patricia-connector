@@ -165,11 +165,7 @@ public class PatriciaConnector implements WiseTimeConnector {
    */
   @Override
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
-    log.info("Posted time received for {}: {}",
-        StringUtils.isNotBlank(userPostedTime.getUser().getExternalId())
-            ? userPostedTime.getUser().getExternalId()
-            : userPostedTime.getUser().getEmail(),
-        Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
+    log.info("Posted time received: {}", userPostedTime.getGroupId());
 
     Optional<String> callerKeyOpt = callerKey();
     if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
@@ -184,7 +180,7 @@ public class PatriciaConnector implements WiseTimeConnector {
       return PostResult.PERMANENT_FAILURE().withMessage("Cannot post time group with no time rows");
     }
 
-    final Optional<String> workCode = getTimeGroupWorkCode(userPostedTime.getTimeRows());
+    final Optional<String> workCode = getTimeGroupWorkCode(userPostedTime);
     if (!workCode.isPresent()) {
       return PostResult.PERMANENT_FAILURE().withMessage("Time group contains invalid modifier.");
     }
@@ -249,7 +245,7 @@ public class PatriciaConnector implements WiseTimeConnector {
             .build()
     );
 
-    log.info("Posted time after modification: {}",
+    log.debug("Posted time after modification: {}",
         Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
 
     try {
@@ -273,8 +269,8 @@ public class PatriciaConnector implements WiseTimeConnector {
     return PostResult.SUCCESS();
   }
 
-  private Optional<String> getTimeGroupWorkCode(final List<TimeRow> timeRows) {
-    final List<String> workCodes = timeRows.stream()
+  private Optional<String> getTimeGroupWorkCode(TimeGroup timeGroup) {
+    final List<String> workCodes = timeGroup.getTimeRows().stream()
         .map(TimeRow::getActivityTypeCode)
         .distinct()
         .collect(Collectors.toList());
@@ -282,7 +278,8 @@ public class PatriciaConnector implements WiseTimeConnector {
       return Optional.empty();
     }
     if (workCodes.size() > 1) {
-      log.error("All time logs within time group should have same modifier, but got: {}", workCodes);
+      log.error("All time logs within time group {} should have same activity type code, but got: {}",
+          timeGroup.getGroupId(), workCodes);
       return Optional.empty();
     }
     return workCodes.stream()
@@ -369,8 +366,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     log.debug("Inserted {} time registration entries for Patricia issue {} on behalf of {}",
         numberOfTimeRegistrationsInserted, params.patriciaCase().caseNumber(), params.userId());
 
-    log.info("Posted time to Patricia issue {} on behalf of {}: {}", params.patriciaCase().caseNumber(), params.userId(),
-        Base64.getEncoder().encodeToString(params.toString().getBytes()));
+    log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
   }
 
   private TemplateFormatter createTemplateFormatter(String getTemplatePath) {
