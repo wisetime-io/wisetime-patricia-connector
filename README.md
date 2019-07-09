@@ -40,6 +40,7 @@ The following configuration options are optional.
 | CONNECTOR_MODE                       | If unset, this defaults to `LONG_POLL`: use long polling to fetch posted time. Optional parameters are `WEBHOOK` to start up a server to listen for posted time. `TAG_ONLY` use the connector only to upsert new tags         |
 | WEBHOOK_PORT                         | The connector will listen to this port e.g. 8090, if CONNECTOR_MODE is set to `WEBHOOK`. Defaults to 8080.                                                                                                                    |
 | LOG_LEVEL                            | Define log level. Available values are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR` and `OFF`. Default is `INFO`.                                                                                                               |
+| ADD_SUMMARY_TO_NARRATIVE             | When `true`, adds total worked time, total chargeable time and experience weighting (if less than 100%) to the narrative when posting time to Patricia. Defaults to `false`.                                                  |
 
 
 ## Running the WiseTime Postgres Connector
