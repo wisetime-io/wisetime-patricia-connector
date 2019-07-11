@@ -93,8 +93,15 @@ public class PatriciaConnector implements WiseTimeConnector {
         .collect(Collectors.toSet());
     initializeRoleTypeId();
 
-    this.timeRegistrationTemplate = createTemplateFormatter(
-        "classpath:narrative-template/patricia-template_time-registration.ftl");
+    // default to no summary
+    if (RuntimeConfig.getBoolean(PatriciaConnectorConfigKey.ADD_SUMMARY_TO_NARRATIVE).orElse(false)) {
+      this.timeRegistrationTemplate = createTemplateFormatter(
+          "classpath:narrative-template/patricia-template_time-registration.ftl");
+    } else {
+      // in case of no summary, just use the charge template, as it is the same as time registration without summary
+      this.timeRegistrationTemplate = createTemplateFormatter(
+          "classpath:narrative-template/patricia-template_charge.ftl");
+    }
     this.chargeTemplate = createTemplateFormatter(
         "classpath:narrative-template/patricia-template_charge.ftl");
 

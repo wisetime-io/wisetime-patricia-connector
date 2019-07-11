@@ -63,15 +63,11 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
-    // Ensure PatriciaConnector#init will not fail
-    doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
-
     // create connector to test for narrative showing row duration
     connector = Guice.createInjector(
         binder -> binder.bind(PatriciaDao.class).toProvider(() -> patriciaDaoMock)
     )
         .getInstance(PatriciaConnector.class);
-    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock));
   }
 
   @BeforeEach
@@ -85,6 +81,18 @@ class PatriciaConnectorPostTimeNarrativeTest {
       ((Runnable) invocation.getArgument(0)).run();
       return null;
     }).when(patriciaDaoMock).asTransaction(any());
+
+    // Ensure PatriciaConnector#init will not fail
+    doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.ADD_SUMMARY_TO_NARRATIVE, "false");
+    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock));
+  }
+
+  private void initConnectorWithSummaryTemplate() {
+    doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
+
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.ADD_SUMMARY_TO_NARRATIVE, "true");
+    connector.init(new ConnectorModule(apiClientMock, mock(ConnectorStore.class)));
   }
 
   @AfterEach
@@ -94,6 +102,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void divide_between_tags() {
+    initConnectorWithSummaryTemplate();
     final TimeRow earliestTimeRow = FAKE_ENTITIES.randomTimeRow()
         .activityTypeCode("DM").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
     final TimeRow latestTimeRow = FAKE_ENTITIES.randomTimeRow()
@@ -156,6 +165,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void divide_between_tags_edited() {
+    initConnectorWithSummaryTemplate();
     final TimeRow earliestTimeRow = FAKE_ENTITIES.randomTimeRow()
         .activityTypeCode("DM").activityHour(2019031808).firstObservedInHour(5).durationSecs(3006);
     final TimeRow latestTimeRow = FAKE_ENTITIES.randomTimeRow()
@@ -218,6 +228,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void whole_duration_for_each_tag() {
+    initConnectorWithSummaryTemplate();
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .activityTypeCode("DM")
         .activityHour(2016050113)
@@ -277,6 +288,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
 
   @Test
   void whole_duration_for_each_tag_edited() {
+    initConnectorWithSummaryTemplate();
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .modifier("")
         .activityHour(2016050113)
@@ -335,7 +347,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
   }
 
   @Test
-  void narrative_only() {
+  void narrative_only_no_summary() {
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityTypeCode("DM").activityHour(2017050113).durationSecs(360);
     final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityTypeCode("DM").activityHour(2017050113).durationSecs(360);
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
@@ -363,7 +375,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
         .startsWith(timeGroup.getDescription())
         .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
         .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
-        // No summary block if NARRATIVE_ONLY
+        // No summary block if NARRATIVE_ONLY and summary is disabled
         .doesNotContain("Total Worked Time:")
         .doesNotContain("Total Chargeable Time: 5m");
     assertThat(budgetLineCommentForCase1)
@@ -372,7 +384,45 @@ class PatriciaConnectorPostTimeNarrativeTest {
   }
 
   @Test
+  void narrative_only() {
+    initConnectorWithSummaryTemplate();
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityTypeCode("DM").activityHour(2017050113).durationSecs(360);
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().activityTypeCode("DM").activityHour(2017050113).durationSecs(360);
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(100);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
+        .totalDurationSecs(300)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.WHOLE_DURATION_TO_EACH_TAG)
+        .narrativeType(TimeGroup.NarrativeTypeEnum.ONLY);
+    setPrerequisitesForSuccessfulPostTime(timeGroup);
+
+    assertThat(connector.postTime(mock(Request.class), timeGroup).getStatus())
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResultStatus.SUCCESS);
+
+    ArgumentCaptor<PatriciaDao.TimeRegistration> timeRegistrationCaptor =
+        ArgumentCaptor.forClass(PatriciaDao.TimeRegistration.class);
+    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegistrationCaptor.capture());
+    final String budgetLineCommentForCase1 = timeRegistrationCaptor.getAllValues().get(0).comment();
+    assertThat(budgetLineCommentForCase1)
+        .as("should display narrative only")
+        .startsWith(timeGroup.getDescription())
+        .doesNotContain(timeRow1.getActivity() + " - " + timeRow1.getDescription())
+        .doesNotContain(timeRow2.getActivity() + " - " + timeRow2.getDescription())
+        .endsWith("Total Worked Time: 12m\n"
+            + "Total Chargeable Time: 5m");
+    assertThat(budgetLineCommentForCase1)
+        .as("comment for the other case should be the same")
+        .isEqualTo(timeRegistrationCaptor.getAllValues().get(1).comment());
+  }
+
+  @Test
   void sanitize_app_name_and_window_title() {
+    initConnectorWithSummaryTemplate();
     final TimeRow nullWindowTitle = FAKE_ENTITIES.randomTimeRow()
         .activity("@_Thinking_@").description(null).activityTypeCode("DM").activityHour(2018110109).durationSecs(120);
     final TimeRow emptyWindowTitle = FAKE_ENTITIES.randomTimeRow()
