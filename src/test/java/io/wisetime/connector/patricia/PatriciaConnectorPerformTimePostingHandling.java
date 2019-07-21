@@ -386,7 +386,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .isEqualTo(dbDate);
     assertThat(timeRegistrations.get(0).activityDate())
         .as("activity date should equal to the activity date of the row in user time zone")
-        .isEqualTo("2018-11-02 05:00:00");
+        .isEqualTo("2018-11-02");
     assertThat(timeRegistrations.get(0).actualHours())
         .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
             "split equally between all tags ")
@@ -499,7 +499,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .isEqualTo(dbDate);
     assertThat(timeRegistrations.get(0).activityDate())
         .as("activity date should equal to the activity date of the row in user time zone")
-        .isEqualTo("2018-11-02 05:00:00");
+        .isEqualTo("2018-11-02");
     assertThat(timeRegistrations.get(0).actualHours())
         .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
             "split equally between all tags ")
@@ -613,7 +613,7 @@ class PatriciaConnectorPerformTimePostingHandling {
         .isEqualTo(dbDate);
     assertThat(timeRegistrations.get(0).activityDate())
         .as("activity date should equal to the activity date of the row in user time zone")
-        .isEqualTo("2018-11-02 05:00:00");
+        .isEqualTo("2018-11-02");
     assertThat(timeRegistrations.get(0).actualHours())
         .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
             "split equally between all tags ")

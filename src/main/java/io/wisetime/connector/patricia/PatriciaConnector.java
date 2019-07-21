@@ -66,7 +66,7 @@ import static io.wisetime.connector.utils.ActivityTimeCalculator.startTime;
 public class PatriciaConnector implements WiseTimeConnector {
 
   private static final Logger log = LoggerFactory.getLogger(PatriciaConnector.class);
-  private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+  private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
