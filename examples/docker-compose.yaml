@@ -37,6 +37,8 @@ services:
       # define appropriate timezone
       TIMEZONE: Australia/Perth
 
+      # Disable tag uploading by setting TAG_SCAN to DISABLED (tag upload must be done by, etg. using the SQL connector)
+      TAG_SCAN: ENABLED
       TAG_UPSERT_PATH: /Patricia/
       TAG_UPSERT_BATCH_SIZE: 500
 
@@ -48,10 +50,10 @@ services:
       # WEBHOOK_PORT: 8080
 
       # specify if a time summary block should be added to the end of the narrative when posting time
-      ADD_SUMMARY_TO_NARRATIVE: false
+      ADD_SUMMARY_TO_NARRATIVE: "false"
 
       # work codes listed will be assigned 0:00 chargeable time in Patricia in addition to a 0 amount when posted.
-      # WORK_CODES_ZERO_CHARGE:
+      # WORK_CODES_ZERO_CHARGE: ""
 
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
       PATRICIA_ROLE_TYPE_ID: <role_type_id>
