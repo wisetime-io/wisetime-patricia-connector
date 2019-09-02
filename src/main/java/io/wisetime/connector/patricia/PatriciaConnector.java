@@ -276,6 +276,11 @@ public class PatriciaConnector implements WiseTimeConnector {
     return PostResult.SUCCESS();
   }
 
+  @Override
+  public String getConnectorType() {
+    return "wisetime-patricia-connector";
+  }
+
   private Optional<String> getTimeGroupWorkCode(TimeGroup timeGroup) {
     final List<String> workCodes = timeGroup.getTimeRows().stream()
         .map(TimeRow::getActivityTypeCode)
