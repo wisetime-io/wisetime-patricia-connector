@@ -70,24 +70,6 @@ To know the correct role type id to use, run this query on Patricia DB:
   SELECT ROLE_TYPE_ID FROM CASE_ROLE_TYPE WHERE ROLE_TYPE_LABEL = 'Account Address';
   ```
 
-## Logging
-
-#### Common
-
-Patricia Connector uses [logback](https://logback.qos.ch) as logging framework. Default log level is `INFO`, you can change it by setting `LOG_LEVEL` configuration.
-
-To setup own appenders or add another customization you can add `logback-extra.xml` on classpath. For more information see [File inclusion](https://logback.qos.ch/manual/configuration.html#fileInclusion).
-
-#### Logging to AWS CloudWatch
-
-If configured, the Patricia Connector can send application logs to [AWS CloudWatch](https://aws.amazon.com/cloudwatch/). In order to do so, you must supply the following configuration through the following environment variables.
-
-| Environment Variable  | Description                                          |
-| --------------------- | ---------------------------------------------------- |
-| AWS_ACCESS_KEY_ID     | AWS access key for account with access to CloudWatch |
-| AWS_SECRET_ACCESS_KEY | Secret for the AWS access key                        |
-| AWS_REGION            | AWS region to log to                                 |
-
 ## Building
 
 To build a Docker image of the WiseTime Patricia Connector, run:
