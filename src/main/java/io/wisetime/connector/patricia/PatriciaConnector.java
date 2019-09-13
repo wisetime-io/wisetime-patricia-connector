@@ -9,6 +9,7 @@ import com.google.common.base.Preconditions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.wisetime.connector.patricia.util.ConnectorException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -267,6 +268,10 @@ public class PatriciaConnector implements WiseTimeConnector {
 
           .forEach(createTimeAndChargeRecord)
       );
+    } catch (ConnectorException e) {
+      return PostResult.PERMANENT_FAILURE()
+          .withError(e)
+          .withMessage(e.getMessage());
     } catch (RuntimeException e) {
       log.warn("Failed to save posted time in Patricia", e);
       return PostResult.TRANSIENT_FAILURE()
@@ -320,7 +325,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     final String dbDate = patriciaDao.getDbDate();
 
     final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
-        .orElseThrow(() -> new RuntimeException(
+        .orElseThrow(() -> new ConnectorException(
             "Could not find external system currency for case " + params.patriciaCase().caseNumber())
         );
 

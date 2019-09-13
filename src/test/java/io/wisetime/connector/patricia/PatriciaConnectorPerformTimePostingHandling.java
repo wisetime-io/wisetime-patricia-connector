@@ -9,6 +9,7 @@ import com.google.inject.Guice;
 
 import com.github.javafaker.Faker;
 
+import java.util.NoSuchElementException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -250,6 +251,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
     when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(BigDecimal.TEN));
     when(patriciaDaoMock.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(randomDataGenerator.randomCase()));
+    when(patriciaDaoMock.getDbDate()).thenThrow(new NoSuchElementException("No value present"));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
         .as("failed to load database date")
@@ -285,9 +287,13 @@ class PatriciaConnectorPerformTimePostingHandling {
     when(patriciaDaoMock.findCaseByCaseNumber(tag.getName())).thenReturn(Optional.of(patriciaCase));
     when(patriciaDaoMock.getDbDate()).thenReturn(LocalDateTime.now().toString());
 
-    assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
+    PostResult postResult = connector.postTime(fakeRequest(), timeGroup);
+    assertThat(postResult.getStatus())
         .as("unable to find currency for the case")
-        .isEqualTo(PostResultStatus.TRANSIENT_FAILURE);
+        .isEqualTo(PostResultStatus.PERMANENT_FAILURE);
+    assertThat(postResult.getMessage())
+        .as("result should contain a descriptive message of the failure")
+        .contains("Could not find external system currency for case " + patriciaCase.caseNumber());
 
     verifyPatriciaNotUpdated();
   }
