@@ -268,14 +268,15 @@ public class PatriciaConnector implements WiseTimeConnector {
 
           .forEach(createTimeAndChargeRecord)
       );
+    } catch (ConnectorException e) {
+      return PostResult.PERMANENT_FAILURE()
+          .withError(e)
+          .withMessage(e.getMessage());
     } catch (RuntimeException e) {
       log.warn("Failed to save posted time in Patricia", e);
-      String message = e instanceof ConnectorException
-          ? e.getMessage()
-          : "There was an error posting time to the Patricia database";
       return PostResult.TRANSIENT_FAILURE()
           .withError(e)
-          .withMessage(message);
+          .withMessage("There was an error posting time to the Patricia database");
     }
     return PostResult.SUCCESS();
   }
