@@ -364,6 +364,7 @@ class PatriciaDaoTest {
         .discountPercentage(BigDecimal.valueOf(FAKER.number().numberBetween(10, 100)))
         .discountAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .comment(FAKER.lorem().sentence(5))
+        .activityDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .build();
 
     patriciaDao.addBudgetLine(budgetLine);
@@ -372,7 +373,7 @@ class PatriciaDaoTest {
         "SELECT b_l_seq_number, work_code_id, b_l_quantity, b_l_org_quantity, b_l_unit_price, " +
             "   b_l_org_unit_price, b_l_unit_price_no_discount, deb_handlagg, b_l_amount, b_l_org_amount, case_id," +
             "   show_time_comment, registered_by, earliest_inv_date, b_l_comment, recorded_date, discount_prec, " +
-            "   discount_amount, currency_id, exchange_rate, indicator " +
+            "   discount_amount, currency_id, exchange_rate, indicator, EXTERNAL_INVOICE_DATE " +
             " FROM budget_line WHERE case_id = ?")
         .params(caseId)
         .singleResult(rs -> {
@@ -398,6 +399,7 @@ class PatriciaDaoTest {
           assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());
           assertThat(rs.getInt(20)).isEqualTo(1);
           assertThat(rs.getString(21)).isEqualTo("TT");
+          assertThat(rs.getString(22)).isEqualTo(budgetLine.activityDate());
 
           return Void.TYPE;
         });

@@ -318,11 +318,12 @@ public class PatriciaDao {
             + "  discount_amount,"
             + "  currency_id,"
             + "  exchange_rate, "
-            + "  INDICATOR"
+            + "  INDICATOR,"
+            + "  EXTERNAL_INVOICE_DATE"
             + ") "
             + "VALUES ("
             + "  :bsn, :wc, :dt, :wt, :upd, :upd, :up, :li, :ttlblamt, :ttlbloamt, :cid, "
-            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er, :indicator"
+            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er, :indicator, :xid"
             + ")"
     )
         // make sure BigDecimal scales match the DB
@@ -345,6 +346,7 @@ public class PatriciaDao {
         .namedParam("cur", budgetLine.currency())
         .namedParam("er", 1)
         .namedParam("indicator", "TT")
+        .namedParam("xid", budgetLine.activityDate())
         .run().affectedRows();
   }
 
@@ -551,6 +553,8 @@ public class PatriciaDao {
     BigDecimal effectiveHourlyRate();
 
     String comment();
+
+    String activityDate();
   }
 
   @Value.Immutable

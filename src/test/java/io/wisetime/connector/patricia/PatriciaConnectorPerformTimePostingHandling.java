@@ -416,6 +416,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).workCodeId())
         .as("should default to default work code")
         .isEqualTo("DM");
+    assertThat(budgetLines.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02");
     assertThat(budgetLines.get(0).submissionDate())
         .as("submission date should equal to the current DB date")
         .isEqualTo(dbDate);
