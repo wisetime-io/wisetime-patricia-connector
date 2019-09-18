@@ -341,6 +341,10 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final int budgetLineSequenceNumber = patriciaDao.findNextBudgetLineSeqNum(params.patriciaCase().caseId());
 
+    final String activityDate = ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
+        .withZoneSameInstant(getTimeZoneId())
+        .format(DATE_TIME_FORMATTER);
+
     BudgetLine budgetLine = ImmutableBudgetLine.builder()
         .budgetLineSequenceNumber(budgetLineSequenceNumber)
         .caseId(params.patriciaCase().caseId())
@@ -357,6 +361,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .discountPercentage(ChargeCalculator.calculateDiscountPercentage(chargeWithoutDiscount, chargeWithDiscount))
         .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHours()))
         .comment(params.chargeComment())
+        .activityDate(activityDate)
         .build();
 
     TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()
@@ -365,9 +370,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .workCodeId(params.workCode())
         .userId(params.userId())
         .submissionDate(dbDate)
-        .activityDate(ZonedDateTime.of(params.recordalDate(), ZoneOffset.UTC)
-            .withZoneSameInstant(getTimeZoneId())
-            .format(DATE_TIME_FORMATTER))
+        .activityDate(activityDate)
         .actualHours(params.actualHours())
         .chargeableHours(params.chargeableHours())
         .comment(params.timeRegComment())

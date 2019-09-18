@@ -101,7 +101,8 @@ CREATE TABLE BUDGET_LINE (
 	DISCOUNT_AMOUNT numeric(14, 2) NULL,
 	CURRENCY_ID nvarchar(3) NULL,
 	EXCHANGE_RATE numeric(10, 6) NULL,
-	INDICATOR nvarchar(3) NULL
+	INDICATOR nvarchar(3) NULL,
+	EXTERNAL_INVOICE_DATE datetime null
 );
 
 -- Added on April 16th 2019
