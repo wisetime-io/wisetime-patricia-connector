@@ -293,7 +293,8 @@ class PatriciaConnectorPerformTimePostingHandling {
         .isEqualTo(PostResultStatus.PERMANENT_FAILURE);
     assertThat(postResult.getMessage())
         .as("result should contain a descriptive message of the failure")
-        .contains("Could not find external system currency for case " + patriciaCase.caseNumber());
+        .contains("Could not find currency for the case " + patriciaCase.caseNumber()
+                + ". Please make sure an account address is configured for this case in the 'Parties' tab.");
 
     verifyPatriciaNotUpdated();
   }
