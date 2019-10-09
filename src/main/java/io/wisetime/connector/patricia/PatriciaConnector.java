@@ -326,7 +326,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
         .orElseThrow(() -> new ConnectorException(
-            "Could not find external system currency for case " + params.patriciaCase().caseNumber())
+            "Could not find currency for the case " + params.patriciaCase().caseNumber()
+                    + ". Please make sure an account address is configured for this case in the 'Parties' tab.")
         );
 
     final List<Discount> discounts = patriciaDao.findDiscounts(
