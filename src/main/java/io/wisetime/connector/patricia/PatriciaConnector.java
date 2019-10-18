@@ -363,6 +363,7 @@ public class PatriciaConnector implements WiseTimeConnector {
         .effectiveHourlyRate(ChargeCalculator.calculateHourlyRate(chargeWithDiscount, params.chargeableHours()))
         .comment(params.chargeComment())
         .activityDate(activityDate)
+        .chargeTypeId(RuntimeConfig.getInt(PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID).orElse(null))
         .build();
 
     TimeRegistration timeRegistration = ImmutableTimeRegistration.builder()

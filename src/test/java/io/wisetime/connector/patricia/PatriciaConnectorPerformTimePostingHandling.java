@@ -325,7 +325,10 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
+  @SuppressWarnings("MethodLength")
   void postTime() {
+    final int chargeTypeId = FAKER.number().numberBetween(100, 1000);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID, chargeTypeId + "");
     final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
@@ -438,6 +441,11 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).comment())
         .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
         .isEqualTo("custom_comment");
+    assertThat(budgetLines.get(0).chargeTypeId())
+        .as("should use the value of `WT_CHARGE_TYPE_ID` env variable when specified")
+        .isEqualTo(chargeTypeId);
+
+    RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID);
   }
 
   @Test
@@ -553,9 +561,13 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).comment())
         .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
         .isEqualTo("custom_comment");
+    assertThat(budgetLines.get(0).chargeTypeId())
+        .as("should use null when env variable `WT_CHARGE_TYPE_ID` is not specified")
+        .isNull();
   }
 
   @Test
+  @SuppressWarnings("MethodLength")
   void postTime_zeroChargeWorkCode() {
     final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
     final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
@@ -674,6 +686,9 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(budgetLines.get(0).discountPercentage())
         .as("discount percentage should be zero when zero charge code is used")
         .isEqualTo(BigDecimal.ZERO);
+    assertThat(budgetLines.get(0).chargeTypeId())
+        .as("should use null when env variable `WT_CHARGE_TYPE_ID` is not specified")
+        .isNull();
   }
 
   @Test

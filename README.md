@@ -41,6 +41,7 @@ The following configuration options are optional.
 | WEBHOOK_PORT                         | The connector will listen to this port e.g. 8090, if RECEIVE_POSTED_TIME is set to `WEBHOOK`. Defaults to 8080.                                                                                                               |                                                                                                                    
 | LOG_LEVEL                            | Define log level. Available values are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR` and `OFF`. Default is `INFO`.                                                                                                               |
 | ADD_SUMMARY_TO_NARRATIVE             | When `true`, adds total worked time, total chargeable time and experience weighting (if less than 100%) to the narrative when posting time to Patricia. Defaults to `false`.                                                  |
+| WT_CHARGE_TYPE_ID                    | Defines the Patricia charging type ID that WiseTime entries will be written with to Patricia. Default is `NULL`                                                                                                               |
 
 
 ## Running the WiseTime Postgres Connector

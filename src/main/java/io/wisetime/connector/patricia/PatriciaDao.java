@@ -115,7 +115,7 @@ public class PatriciaDao {
         ImmutableSet.of("b_l_seq_number", "work_code_id", "b_l_quantity", "b_l_org_quantity", "b_l_unit_price",
             "b_l_org_unit_price", "b_l_unit_price_no_discount", "deb_handlagg", "b_l_amount", "b_l_org_amount", "case_id",
             "show_time_comment", "registered_by", "earliest_inv_date", "b_l_comment", "recorded_date", "discount_prec",
-            "discount_amount", "currency_id", "exchange_rate"
+            "discount_amount", "currency_id", "exchange_rate", "chargeing_type_id"
         )
     );
 
@@ -319,11 +319,12 @@ public class PatriciaDao {
             + "  currency_id,"
             + "  exchange_rate, "
             + "  INDICATOR,"
-            + "  EXTERNAL_INVOICE_DATE"
+            + "  EXTERNAL_INVOICE_DATE,"
+            + "  CHARGEING_TYPE_ID"
             + ") "
             + "VALUES ("
             + "  :bsn, :wc, :dt, :wt, :upd, :upd, :up, :li, :ttlblamt, :ttlbloamt, :cid, "
-            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er, :indicator, :xid"
+            + "  :stc, :li, :eid, :tci, :rd, :discperc, :discamt, :cur, :er, :indicator, :xid, :chargeing_type_id"
             + ")"
     )
         // make sure BigDecimal scales match the DB
@@ -347,6 +348,7 @@ public class PatriciaDao {
         .namedParam("er", 1)
         .namedParam("indicator", "TT")
         .namedParam("xid", budgetLine.activityDate())
+        .namedParam("chargeing_type_id", budgetLine.chargeTypeId())
         .run().affectedRows();
   }
 
@@ -555,6 +557,9 @@ public class PatriciaDao {
     String comment();
 
     String activityDate();
+
+    @Nullable
+    Integer chargeTypeId();
   }
 
   @Value.Immutable
