@@ -346,7 +346,7 @@ class PatriciaDaoTest {
   }
 
   @Test
-  void addBudgetLine() {
+  void addBudgetLine_chargeingTypeId_null() {
     final long caseId = FAKER.number().randomDigitNotZero();
     final BudgetLine budgetLine = ImmutableBudgetLine.builder()
         .budgetLineSequenceNumber(FAKER.number().numberBetween(10, 100))
@@ -365,6 +365,7 @@ class PatriciaDaoTest {
         .discountAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
         .comment(FAKER.lorem().sentence(5))
         .activityDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .chargeTypeId(null)
         .build();
 
     patriciaDao.addBudgetLine(budgetLine);
@@ -373,7 +374,7 @@ class PatriciaDaoTest {
         "SELECT b_l_seq_number, work_code_id, b_l_quantity, b_l_org_quantity, b_l_unit_price, " +
             "   b_l_org_unit_price, b_l_unit_price_no_discount, deb_handlagg, b_l_amount, b_l_org_amount, case_id," +
             "   show_time_comment, registered_by, earliest_inv_date, b_l_comment, recorded_date, discount_prec, " +
-            "   discount_amount, currency_id, exchange_rate, indicator, EXTERNAL_INVOICE_DATE " +
+            "   discount_amount, currency_id, exchange_rate, indicator, EXTERNAL_INVOICE_DATE, CHARGEING_TYPE_ID " +
             " FROM budget_line WHERE case_id = ?")
         .params(caseId)
         .singleResult(rs -> {
@@ -400,6 +401,73 @@ class PatriciaDaoTest {
           assertThat(rs.getInt(20)).isEqualTo(1);
           assertThat(rs.getString(21)).isEqualTo("TT");
           assertThat(rs.getString(22)).isEqualTo(budgetLine.activityDate());
+          assertThat(rs.getObject(23)).isNull();
+
+          return Void.TYPE;
+        });
+
+    assertThat(patriciaDao.findNextBudgetLineSeqNum(caseId))
+        .as("next sequence number for budget line should be 2")
+        .isEqualTo(budgetLine.budgetLineSequenceNumber() + 1);
+  }
+
+  @Test
+  void addBudgetLine() {
+    final long caseId = FAKER.number().randomDigitNotZero();
+    final BudgetLine budgetLine = ImmutableBudgetLine.builder()
+        .budgetLineSequenceNumber(FAKER.number().numberBetween(10, 100))
+        .caseId(caseId)
+        .workCodeId(FAKER.lorem().characters(1, 10))
+        .userId(FAKER.name().name())
+        .submissionDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .currency(FAKER.currency().code())
+        .hourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .effectiveHourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .actualWorkTotalHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .chargeableWorkTotalHours(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .actualWorkTotalAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .chargeableAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .discountPercentage(BigDecimal.valueOf(FAKER.number().numberBetween(10, 100)))
+        .discountAmount(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
+        .comment(FAKER.lorem().sentence(5))
+        .activityDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
+        .chargeTypeId(FAKER.number().numberBetween(100, 1000))
+        .build();
+
+    patriciaDao.addBudgetLine(budgetLine);
+
+    fluentJdbc.query().select(
+        "SELECT b_l_seq_number, work_code_id, b_l_quantity, b_l_org_quantity, b_l_unit_price, " +
+            "   b_l_org_unit_price, b_l_unit_price_no_discount, deb_handlagg, b_l_amount, b_l_org_amount, case_id," +
+            "   show_time_comment, registered_by, earliest_inv_date, b_l_comment, recorded_date, discount_prec, " +
+            "   discount_amount, currency_id, exchange_rate, indicator, EXTERNAL_INVOICE_DATE, CHARGEING_TYPE_ID " +
+            " FROM budget_line WHERE case_id = ?")
+        .params(caseId)
+        .singleResult(rs -> {
+          // assert if correct values are set
+          assertThat(rs.getInt(1)).isEqualTo(budgetLine.budgetLineSequenceNumber());
+          assertThat(rs.getString(2)).isEqualTo(budgetLine.workCodeId());
+          assertThat(rs.getBigDecimal(3)).isEqualByComparingTo(budgetLine.chargeableWorkTotalHours());
+          assertThat(rs.getBigDecimal(4)).isEqualByComparingTo(budgetLine.actualWorkTotalHours());
+          assertThat(rs.getBigDecimal(5)).isEqualByComparingTo(budgetLine.effectiveHourlyRate());
+          assertThat(rs.getBigDecimal(6)).isEqualByComparingTo(budgetLine.effectiveHourlyRate());
+          assertThat(rs.getBigDecimal(7)).isEqualByComparingTo(budgetLine.hourlyRate());
+          assertThat(rs.getString(8)).isEqualTo(budgetLine.userId());
+          assertThat(rs.getBigDecimal(9)).isEqualByComparingTo(budgetLine.chargeableAmount());
+          assertThat(rs.getBigDecimal(10)).isEqualByComparingTo(budgetLine.actualWorkTotalAmount());
+          assertThat(rs.getLong(11)).isEqualTo(budgetLine.caseId());
+          assertThat(rs.getInt(12)).isEqualTo(1);
+          assertThat(rs.getString(13)).isEqualTo(budgetLine.userId());
+          assertThat(rs.getString(14)).isEqualTo(budgetLine.submissionDate());
+          assertThat(rs.getString(15)).isEqualTo(budgetLine.comment());
+          assertThat(rs.getString(16)).isEqualTo(budgetLine.submissionDate());
+          assertThat(rs.getBigDecimal(17)).isEqualByComparingTo(budgetLine.discountPercentage());
+          assertThat(rs.getBigDecimal(18)).isEqualByComparingTo(budgetLine.discountAmount());
+          assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());
+          assertThat(rs.getInt(20)).isEqualTo(1);
+          assertThat(rs.getString(21)).isEqualTo("TT");
+          assertThat(rs.getString(22)).isEqualTo(budgetLine.activityDate());
+          assertThat(rs.getInt(23)).isEqualTo(budgetLine.chargeTypeId());
 
           return Void.TYPE;
         });

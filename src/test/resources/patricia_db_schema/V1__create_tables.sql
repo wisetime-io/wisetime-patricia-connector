@@ -102,7 +102,9 @@ CREATE TABLE BUDGET_LINE (
 	CURRENCY_ID nvarchar(3) NULL,
 	EXCHANGE_RATE numeric(10, 6) NULL,
 	INDICATOR nvarchar(3) NULL,
-	EXTERNAL_INVOICE_DATE datetime null
+	EXTERNAL_INVOICE_DATE datetime null,
+	-- added on October 18th 2019
+	CHARGEING_TYPE_ID int null
 );
 
 -- Added on April 16th 2019

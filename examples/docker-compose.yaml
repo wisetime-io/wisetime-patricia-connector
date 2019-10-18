@@ -52,6 +52,9 @@ services:
       # specify if a time summary block should be added to the end of the narrative when posting time
       ADD_SUMMARY_TO_NARRATIVE: "false"
 
+      # value to set as WT_CHARGE_TYPE_ID when posting time to BUDGET_LINE table
+      WT_CHARGE_TYPE_ID: 500
+
       # work codes listed will be assigned 0:00 chargeable time in Patricia in addition to a 0 amount when posted.
       # WORK_CODES_ZERO_CHARGE: ""
 
