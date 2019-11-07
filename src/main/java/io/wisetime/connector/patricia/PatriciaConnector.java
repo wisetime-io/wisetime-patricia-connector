@@ -324,11 +324,7 @@ public class PatriciaConnector implements WiseTimeConnector {
   private void executeCreateTimeAndChargeRecord(PatriciaDao.CreateTimeAndChargeParams params) {
     final String dbDate = patriciaDao.getDbDate();
 
-    final String currency = patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
-        .orElseThrow(() -> new ConnectorException(
-            "Could not find currency for the case " + params.patriciaCase().caseNumber()
-                    + ". Please make sure an account address is configured for this case in the 'Parties' tab.")
-        );
+    final String currency = getCurrency(params);
 
     final List<Discount> discounts = patriciaDao.findDiscounts(
         params.workCode(), roleTypeId, params.patriciaCase().caseId()
@@ -389,6 +385,18 @@ public class PatriciaConnector implements WiseTimeConnector {
         numberOfTimeRegistrationsInserted, params.patriciaCase().caseNumber(), params.userId());
 
     log.info("Posted time to Patricia issue {} on behalf of {}", params.patriciaCase().caseNumber(), params.userId());
+  }
+
+  private String getCurrency(PatriciaDao.CreateTimeAndChargeParams params) {
+    if (RuntimeConfig.getBoolean(PatriciaConnectorConfigKey.USE_SYSDEFAULT_CURRENCY_FOR_POSTING).orElse(false)) {
+      return patriciaDao.getSystemDefaultCurrency()
+          .orElseThrow(() -> new ConnectorException("Could not find the system default currency."));
+    }
+    return patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
+        .orElseThrow(() -> new ConnectorException(
+            "Could not find currency for the case " + params.patriciaCase().caseNumber()
+                    + ". Please make sure an account address is configured for this case in the 'Parties' tab.")
+        );
   }
 
   private TemplateFormatter createTemplateFormatter(String getTemplatePath) {

@@ -172,6 +172,11 @@ public class PatriciaDao {
         .firstResult(Mappers.singleString());
   }
 
+  Optional<String> getSystemDefaultCurrency() {
+    return query().select("select CURRENCY_ID from CURRENCY where default_currency = 1")
+        .firstResult(Mappers.singleString());
+  }
+
   Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
     return query().select(
         " SELECT CASE " +

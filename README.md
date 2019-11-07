@@ -42,6 +42,7 @@ The following configuration options are optional.
 | LOG_LEVEL                            | Define log level. Available values are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR` and `OFF`. Default is `INFO`.                                                                                                               |
 | ADD_SUMMARY_TO_NARRATIVE             | When `true`, adds total worked time, total chargeable time and experience weighting (if less than 100%) to the narrative when posting time to Patricia. Defaults to `false`.                                                  |
 | WT_CHARGE_TYPE_ID                    | Defines the Patricia charging type ID that WiseTime entries will be written with to Patricia. Default is `NULL`                                                                                                               |
+| USE_SYSDEFAULT_CURRENCY_FOR_POSTING  | When `true` the connector will use the the system default currency, instead of determining it by case. Defaults to `false`.                                                                                                    |
 
 
 ## Running the WiseTime Postgres Connector
