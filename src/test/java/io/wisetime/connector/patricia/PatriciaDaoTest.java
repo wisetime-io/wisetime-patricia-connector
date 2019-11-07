@@ -436,7 +436,7 @@ class PatriciaDaoTest {
         .budgetLineSequenceNumber(FAKER.number().numberBetween(10, 100))
         .caseId(caseId)
         .workCodeId(FAKER.lorem().characters(1, 10))
-        .userId(FAKER.name().name())
+        .userId(FAKER.name().firstName())
         .submissionDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .currency(FAKER.currency().code())
         .hourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))
