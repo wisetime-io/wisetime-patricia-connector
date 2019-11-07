@@ -200,6 +200,22 @@ class PatriciaDaoTest {
   }
 
   @Test
+  void getSystemDefaultCurrency() {
+    String currency = FAKER.currency().code();
+
+    fluentJdbc.query().update("INSERT INTO CURRENCY (CURRENCY_ID, default_currency) VALUES (?, ?)")
+        .params(currency, 1)
+        .run();
+    fluentJdbc.query().update("INSERT INTO CURRENCY (CURRENCY_ID, default_currency) VALUES (?, ?)")
+        .params(FAKER.currency().code(), 0)
+        .run();
+
+    assertThat(patriciaDao.getSystemDefaultCurrency())
+        .as("should be able to retrieve currency defined for a case")
+        .contains(currency);
+  }
+
+  @Test
   void findUserHourlyRate() {
     double personGeneralHourlyRate = FAKER.number().randomDigitNotZero();
     double personHourlyRateForWorkCode = personGeneralHourlyRate + 10;
@@ -352,7 +368,9 @@ class PatriciaDaoTest {
         .budgetLineSequenceNumber(FAKER.number().numberBetween(10, 100))
         .caseId(caseId)
         .workCodeId(FAKER.lorem().characters(1, 10))
-        .userId(FAKER.name().name())
+        // use only first name in tests. Faker full names sometimes get too long for the table
+        // in real connector this can't happen because handle comes from the DB
+        .userId(FAKER.name().firstName())
         .submissionDate(LocalDateTime.now().format(DATE_TIME_FORMATTER))
         .currency(FAKER.currency().code())
         .hourlyRate(BigDecimal.valueOf(FAKER.number().randomDigitNotZero()))

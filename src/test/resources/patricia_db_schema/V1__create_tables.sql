@@ -116,3 +116,12 @@ create table WORK_CODE
 	WORK_CODE_DEFAULT_AMOUNT numeric(10,2),
 	REPLACE_AMOUNT int
 );
+
+CREATE TABLE CURRENCY  (
+   CURRENCY_ID      nvarchar(3) PRIMARY KEY,
+   CURRENCY_LABEL   nvarchar(40) NULL,
+   CURRENCY_PREFIX  nvarchar(30) NULL,
+   CURRENCY_SUFIX   nvarchar(30) NULL,
+   default_currency int NULL,
+   currency_active  int NULL
+)

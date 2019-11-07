@@ -58,6 +58,9 @@ services:
       # work codes listed will be assigned 0:00 chargeable time in Patricia in addition to a 0 amount when posted.
       # WORK_CODES_ZERO_CHARGE: ""
 
+      # configures the connector to always use the system default currency
+      # USE_SYSDEFAULT_CURRENCY_FOR_POSTING: true
+
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
       PATRICIA_ROLE_TYPE_ID: <role_type_id>
 
