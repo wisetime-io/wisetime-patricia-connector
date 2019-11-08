@@ -10,6 +10,8 @@ import com.google.common.base.Preconditions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.wisetime.connector.patricia.util.ConnectorException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -70,8 +72,10 @@ public class PatriciaConnector implements WiseTimeConnector {
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-  static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
+  private static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
+  private static final String PATRICIA_LAST_REFRESHED_KEY = "patricia_last_refreshed_id";
 
+  private Supplier<Integer> tagSyncIntervalMinutes;
   private ApiClient apiClient;
   private ConnectorStore connectorStore;
   private TemplateFormatter timeRegistrationTemplate;
@@ -96,22 +100,23 @@ public class PatriciaConnector implements WiseTimeConnector {
 
     // default to no summary
     if (RuntimeConfig.getBoolean(PatriciaConnectorConfigKey.ADD_SUMMARY_TO_NARRATIVE).orElse(false)) {
-      this.timeRegistrationTemplate = createTemplateFormatter(
+      timeRegistrationTemplate = createTemplateFormatter(
           "classpath:narrative-template/patricia-template_time-registration.ftl");
     } else {
       // in case of no summary, just use the charge template, as it is the same as time registration without summary
-      this.timeRegistrationTemplate = createTemplateFormatter(
+      timeRegistrationTemplate = createTemplateFormatter(
           "classpath:narrative-template/patricia-template_charge.ftl");
     }
-    this.chargeTemplate = createTemplateFormatter(
+    chargeTemplate = createTemplateFormatter(
         "classpath:narrative-template/patricia-template_charge.ftl");
 
-    this.apiClient = connectorModule.getApiClient();
-    this.connectorStore = connectorModule.getConnectorStore();
+    tagSyncIntervalMinutes = connectorModule::getTagSyncIntervalMinutes;
+    apiClient = connectorModule.getApiClient();
+    connectorStore = connectorModule.getConnectorStore();
   }
 
   private void initializeRoleTypeId() {
-    this.roleTypeId = RuntimeConfig.getInt(PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID)
+    roleTypeId = RuntimeConfig.getInt(PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID)
         .orElseThrow(() -> new IllegalStateException("Required configuration param PATRICIA_ROLE_TYPE_ID is not set."));
   }
 
@@ -125,46 +130,17 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   /**
    * Called by the WiseTime Connector library on a regular schedule.
-   * Finds Patricia cases that haven't been synced and creates matching tags for them in WiseTime.
+   *
+   *   1. Finds all Patricia cases that haven't been synced and creates matching tags for them in WiseTime.
+   *      Blocks until all cases have been synced.
+   *
+   *   2. Sends a batch of already synced cases to WiseTime to maintain freshness of existing tags.
+   *      Mitigates effect of renamed or missed tags. Only one refresh batch per performTagUpdate() call.
    */
   @Override
   public void performTagUpdate() {
-    while (true) {
-      final Optional<Long> storedLastSyncedCaseId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY);
-
-      final List<Case> newCases = patriciaDao.findCasesOrderById(
-          storedLastSyncedCaseId.orElse(0L),
-          tagUpsertBatchSize()
-      );
-
-      if (newCases.isEmpty()) {
-        log.info("No new cases found. Last case ID synced: {}",
-            storedLastSyncedCaseId.map(String::valueOf).orElse("None"));
-        return;
-      } else {
-        try {
-          log.info("Detected {} new {}: {}",
-              newCases.size(),
-              newCases.size() > 1 ? "tags" : "tag",
-              newCases.stream().map(Case::caseNumber).collect(Collectors.joining(", ")));
-
-          final List<UpsertTagRequest> upsertRequests = newCases
-              .stream()
-              .map(item -> item.toUpsertTagRequest(tagUpsertPath()))
-              .collect(Collectors.toList());
-
-          apiClient.tagUpsertBatch(upsertRequests);
-
-          final long lastSyncedCaseId = newCases.get(newCases.size() - 1).caseId();
-          connectorStore.putLong(PATRICIA_LAST_SYNC_KEY, lastSyncedCaseId);
-          log.info("Last synced case ID: {}", lastSyncedCaseId);
-        } catch (IOException e) {
-          // The batch will be retried since we didn't update the last synced case ID
-          // Let scheduler know that this batch has failed
-          throw new RuntimeException(e);
-        }
-      }
-    }
+    syncNewCases();
+    refreshCases(tagRefreshBatchSize());
   }
 
   /**
@@ -281,6 +257,75 @@ public class PatriciaConnector implements WiseTimeConnector {
     return PostResult.SUCCESS();
   }
 
+  @VisibleForTesting
+  void syncNewCases() {
+    while (true) {
+      final Optional<Long> storedLastSyncedCaseId = connectorStore.getLong(PATRICIA_LAST_SYNC_KEY);
+
+      final List<Case> newCases = patriciaDao.findCasesOrderById(
+          storedLastSyncedCaseId.orElse(0L),
+          tagUpsertBatchSize()
+      );
+
+      if (newCases.isEmpty()) {
+        log.info("No new cases found. Last case ID synced: {}",
+            storedLastSyncedCaseId.map(String::valueOf).orElse("None"));
+        return;
+      }
+
+      log.info("Detected {} new {}: {}",
+          newCases.size(),
+          newCases.size() > 1 ? "tags" : "tag",
+          newCases.stream().map(Case::caseNumber).collect(Collectors.joining(", ")));
+
+      upsertWiseTimeTags(newCases);
+
+      final long lastSyncedCaseId = newCases.get(newCases.size() - 1).caseId();
+      connectorStore.putLong(PATRICIA_LAST_SYNC_KEY, lastSyncedCaseId);
+      log.info("Last synced case ID: {}", lastSyncedCaseId);
+    }
+  }
+
+  @VisibleForTesting
+  void refreshCases(final int batchSize) {
+    final long lastPreviouslyRefreshedCaseId = connectorStore.getLong(PATRICIA_LAST_REFRESHED_KEY).orElse(0L);
+
+    final List<Case> refreshCases = patriciaDao.findCasesOrderById(
+        lastPreviouslyRefreshedCaseId,
+        batchSize
+    );
+
+    if (refreshCases.isEmpty()) {
+      // Start over the next time we are called
+      connectorStore.putLong(PATRICIA_LAST_REFRESHED_KEY, 0L);
+      return;
+    }
+
+    log.info("Refreshing {} {}: {}",
+        refreshCases.size(),
+        refreshCases.size() > 1 ? "tags" : "tag",
+        refreshCases.stream().map(Case::caseNumber).collect(Collectors.joining(", ")));
+
+    upsertWiseTimeTags(refreshCases);
+
+    final long lastRefreshedCaseId = refreshCases.get(refreshCases.size() - 1).caseId();
+    connectorStore.putLong(PATRICIA_LAST_REFRESHED_KEY, lastRefreshedCaseId);
+    log.info("Last refreshed case ID: {}", lastRefreshedCaseId);
+  }
+
+  private void upsertWiseTimeTags(final List<Case> cases) {
+    try {
+      final List<UpsertTagRequest> upsertRequests = cases
+          .stream()
+          .map(item -> item.toUpsertTagRequest(tagUpsertPath()))
+          .collect(Collectors.toList());
+
+      apiClient.tagUpsertBatch(upsertRequests);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   @Override
   public String getConnectorType() {
     return "wisetime-patricia-connector";
@@ -313,6 +358,21 @@ public class PatriciaConnector implements WiseTimeConnector {
         .getInt(PatriciaConnectorConfigKey.TAG_UPSERT_BATCH_SIZE)
         // A large batch mitigates query round trip latency
         .orElse(500);
+  }
+
+  @VisibleForTesting
+  int tagRefreshBatchSize() {
+    final long tagCount = patriciaDao.casesCount();
+    final long batchFullFortnightlyRefresh = tagCount / (TimeUnit.DAYS.toMinutes(14) / tagSyncIntervalMinutes.get());
+
+    if (batchFullFortnightlyRefresh > tagUpsertBatchSize()) {
+      return tagUpsertBatchSize();
+    }
+    final int minimumBatchSize = 10;
+    if (batchFullFortnightlyRefresh < minimumBatchSize) {
+      return minimumBatchSize;
+    }
+    return (int) batchFullFortnightlyRefresh;
   }
 
   private String tagUpsertPath() {

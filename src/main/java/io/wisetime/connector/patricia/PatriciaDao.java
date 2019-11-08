@@ -142,6 +142,13 @@ public class PatriciaDao {
     }
   }
 
+  long casesCount() {
+    return query().select("SELECT COUNT(*)" +
+        " FROM vw_case_number vcn JOIN pat_case pc ON vcn.case_id = pc.case_id ")
+        .firstResult(Mappers.singleLong())
+        .orElse(0L);
+  }
+
   List<Case> findCasesOrderById(final long startIdExclusive, final int maxResults) {
     return query().select("SELECT TOP (?) vcn.case_id, vcn.case_number, pc.case_catch_word, " +
         " pc.case_type_id, pc.state_id, pc.application_type_id " +

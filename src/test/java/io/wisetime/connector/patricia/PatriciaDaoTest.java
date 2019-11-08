@@ -126,6 +126,24 @@ class PatriciaDaoTest {
   }
 
   @Test
+  void casesCount_none_found() {
+    assertThat(patriciaDao.casesCount())
+        .as("There are no cases in the database")
+        .isEqualTo(0);
+  }
+
+  @Test
+  void casesCount_all() {
+    final int casesNumber = 10;
+    RANDOM_DATA_GENERATOR.randomCase(casesNumber)
+        .forEach(this::saveCase);
+
+    assertThat(patriciaDao.casesCount())
+        .as("All cases should be counted")
+        .isEqualTo(casesNumber);
+  }
+
+  @Test
   void findIssuesOrderedById() {
     final List<Case> cases = RANDOM_DATA_GENERATOR.randomCase(100);
 
