@@ -4,24 +4,6 @@
 
 package io.wisetime.connector.patricia;
 
-import com.google.common.collect.ImmutableList;
-import com.google.inject.Guice;
-
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
-
-import io.wisetime.connector.ConnectorModule;
-import io.wisetime.connector.api_client.ApiClient;
-import io.wisetime.connector.config.RuntimeConfig;
-import io.wisetime.connector.datastore.ConnectorStore;
-import io.wisetime.generated.connect.UpsertTagRequest;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -38,10 +20,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableList;
+import com.google.inject.Guice;
+import io.wisetime.connector.ConnectorModule;
+import io.wisetime.connector.api_client.ApiClient;
+import io.wisetime.connector.config.RuntimeConfig;
+import io.wisetime.connector.datastore.ConnectorStore;
+import io.wisetime.generated.connect.UpsertTagRequest;
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
 /**
  * @author vadym
  */
-class PatriciaConnectorPerformTagUpdateTest {
+class PatriciaConnectorSyncNewCasesTest {
 
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
   private static PatriciaDao patriciaDaoMock = mock(PatriciaDao.class);
@@ -74,17 +71,17 @@ class PatriciaConnectorPerformTagUpdateTest {
   }
 
   @Test
-  void performTagUpdate_no_cases() {
+  void syncNewCases_no_cases() {
     when(patriciaDaoMock.findCasesOrderById(anyLong(), anyInt())).thenReturn(ImmutableList.of());
 
-    connector.performTagUpdate();
+    connector.syncNewCases();
 
     verifyZeroInteractions(apiClientMock);
     verify(connectorStoreMock, never()).putLong(anyString(), anyLong());
   }
 
   @Test
-  void performTagUpdate_upsert_error() throws IOException {
+  void syncNewCases_upsert_error() throws IOException {
     when(patriciaDaoMock.findCasesOrderById(anyLong(), anyInt()))
         .thenReturn(ImmutableList.of(randomDataGenerator.randomCase(), randomDataGenerator.randomCase()));
 
@@ -92,7 +89,7 @@ class PatriciaConnectorPerformTagUpdateTest {
     doThrow(casedBy)
         .when(apiClientMock).tagUpsertBatch(anyList());
 
-    assertThatThrownBy(() -> connector.performTagUpdate())
+    assertThatThrownBy(() -> connector.syncNewCases())
         .isInstanceOf(RuntimeException.class)
         .hasCause(casedBy);
     verify(apiClientMock, times(1)).tagUpsertBatch(anyList());
@@ -100,7 +97,7 @@ class PatriciaConnectorPerformTagUpdateTest {
   }
 
   @Test
-  void performTagUpdate_new_cases_found() throws IOException {
+  void syncNewCases_new_cases_found() throws IOException {
     final PatriciaDao.Case case1 = randomDataGenerator.randomCase();
     final PatriciaDao.Case case2 = randomDataGenerator.randomCase();
 
@@ -111,17 +108,18 @@ class PatriciaConnectorPerformTagUpdateTest {
         .thenReturn(ImmutableList.of(case1, case2))
         .thenReturn(ImmutableList.of());
 
-    connector.performTagUpdate();
+    connector.syncNewCases();
 
     ArgumentCaptor<List<UpsertTagRequest>> upsertRequests = ArgumentCaptor.forClass(List.class);
     verify(apiClientMock, times(1)).tagUpsertBatch(upsertRequests.capture());
 
     assertThat(upsertRequests.getValue())
-        .containsExactlyInAnyOrder(case1.toUpsertTagRequest("/Patricia/"),
-            case2.toUpsertTagRequest("/Patricia/"))
-        .as("We should create tags for both new cases found, with the configured tag upsert path");
+        .as("We should create tags for both new cases found, with the configured tag upsert path")
+        .containsExactlyInAnyOrder(
+            case1.toUpsertTagRequest("/Patricia/"),
+            case2.toUpsertTagRequest("/Patricia/"));
 
     verify(connectorStoreMock, times(1))
-        .putLong(PatriciaConnector.PATRICIA_LAST_SYNC_KEY, case2.caseId());
+        .putLong("patricia_last_sync_id", case2.caseId());
   }
 }
