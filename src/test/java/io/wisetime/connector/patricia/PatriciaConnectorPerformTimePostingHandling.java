@@ -63,6 +63,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   private static final Faker FAKER = new Faker();
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
+  private static final String TAG_UPSERT_PATH = "/Patricia/";
 
   private static final String ZERO_CHARGE_WORK_CODES = " zero1 ,zero2 ,";
   private static final String ACTIVITY_TYPE_CODE = "DM";
@@ -76,6 +77,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   @BeforeAll
   static void setUp() {
     RuntimeConfig.rebuild();
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_UPSERT_PATH, TAG_UPSERT_PATH);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WORK_CODES_ZERO_CHARGE, ZERO_CHARGE_WORK_CODES);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
 
@@ -136,6 +138,30 @@ class PatriciaConnectorPerformTimePostingHandling {
         .isEqualTo(PostResult.SUCCESS().withMessage("Time group has no tags. There is nothing to post to Patricia."));
 
     verifyZeroInteractions(patriciaDaoMock);
+  }
+
+  @Test
+  void postTime_tag_not_exists_in_patricia_db() {
+    Tag tag = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag_not_exists");
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(tag));
+    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
+    when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
+        .thenReturn(Optional.empty());
+
+    String userLogin = FAKER.internet().uuid();
+    String dbDate = LocalDateTime.now().toString();
+    String currency = FAKER.currency().code();
+    BigDecimal hourlyRate = BigDecimal.TEN;
+
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
+        .as("tag not found in db")
+        .isEqualTo(PostResult.PERMANENT_FAILURE().getStatus());
   }
 
   @Test
@@ -233,7 +259,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_unable_to_get_date_from_db() {
-    final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow().activityTypeCode(ACTIVITY_TYPE_CODE).activityHour(2018110110);
     timeRow.setDescription(FAKER.lorem().characters());
     final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
@@ -262,7 +288,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_unable_to_get_currency() {
-    final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag");
     final TimeRow timeRow = FAKE_ENTITIES.randomTimeRow()
         .activityTypeCode(ACTIVITY_TYPE_CODE)
         .activityHour(2018110110)
@@ -301,7 +327,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_multiple_activityTypeCode() {
-    final Tag tag = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag");
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
         .activityTypeCode(ACTIVITY_TYPE_CODE).activityHour(2018110110);
     final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
@@ -325,13 +351,13 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  @SuppressWarnings("MethodLength")
+  @SuppressWarnings({"MethodLength", "ExecutableStatementCount"})
   void postTime() {
     final int chargeTypeId = FAKER.number().numberBetween(100, 1000);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID, chargeTypeId + "");
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
+    final Tag tag3 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag3");
 
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
         .activityHour(2018110121)
@@ -360,11 +386,12 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
     final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+    final Case patriciaCase3 = randomDataGenerator.randomCase(tag3.getName());
 
     when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
-        .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
+        .thenReturn(Optional.of(patriciaCase3));
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -382,7 +409,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Time Registration creation
     ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addTimeRegistration(timeRegCaptor.capture());
     List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
 
     assertThat(timeRegistrations.get(0).caseId())
@@ -411,7 +438,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addBudgetLine(budgetLineCaptor.capture());
     List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
 
     assertThat(budgetLines.get(0).caseId())
@@ -451,9 +478,9 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   void postTime_editedTotalDuration() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
+    final Tag tag3 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag3");
 
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
         .activityHour(2018110121)
@@ -482,11 +509,12 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
     final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+    final Case patriciaCase3 = randomDataGenerator.randomCase(tag3.getName());
 
     when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
-        .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
+        .thenReturn(Optional.of(patriciaCase3)); // Last tag has no matching Patricia issue
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -504,7 +532,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Time Registration creation
     ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addTimeRegistration(timeRegCaptor.capture());
     List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
 
     assertThat(timeRegistrations.get(0).caseId())
@@ -534,7 +562,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addBudgetLine(budgetLineCaptor.capture());
     List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
 
     assertThat(budgetLines.get(0).caseId())
@@ -570,9 +598,9 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   @SuppressWarnings("MethodLength")
   void postTime_zeroChargeWorkCode() {
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
+    final Tag tag3 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag3");
 
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121)
         .activityTypeCode("zero1")
@@ -600,11 +628,12 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
     final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+    final Case patriciaCase3 = randomDataGenerator.randomCase(tag3.getName());
 
     when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
-        .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
+        .thenReturn(Optional.of(patriciaCase3));
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -622,7 +651,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Time Registration creation
     ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addTimeRegistration(timeRegCaptor.capture());
     List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
 
     assertThat(timeRegistrations.get(0).caseId())
@@ -650,7 +679,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addBudgetLine(budgetLineCaptor.capture());
     List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
 
     assertThat(budgetLines.get(0).caseId())
@@ -693,12 +722,12 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  @SuppressWarnings("MethodLength")
+  @SuppressWarnings({"MethodLength", "ExecutableStatementCount"})
   void postTime_systemCurrency() {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.USE_SYSDEFAULT_CURRENCY_FOR_POSTING, "true");
-    final Tag tag1 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag2 = FAKE_ENTITIES.randomTag("/Patricia/");
-    final Tag tag3 = FAKE_ENTITIES.randomTag("/Patricia/");
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
+    final Tag tag3 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag3");
 
     final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121)
         .activityTypeCode("zero1")
@@ -726,11 +755,12 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
     final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+    final Case patriciaCase3 = randomDataGenerator.randomCase(tag3.getName());
 
     when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
         .thenReturn(Optional.of(patriciaCase1))
         .thenReturn(Optional.of(patriciaCase2))
-        .thenReturn(Optional.empty()); // Last tag has no matching Patricia issue
+        .thenReturn(Optional.of(patriciaCase3));
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -748,7 +778,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Time Registration creation
     ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
-    verify(patriciaDaoMock, times(2)).addTimeRegistration(timeRegCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addTimeRegistration(timeRegCaptor.capture());
     List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
 
     assertThat(timeRegistrations.get(0).caseId())
@@ -776,7 +806,7 @@ class PatriciaConnectorPerformTimePostingHandling {
 
     // Verify Budget Line creation
     ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
-    verify(patriciaDaoMock, times(2)).addBudgetLine(budgetLineCaptor.capture());
+    verify(patriciaDaoMock, times(3)).addBudgetLine(budgetLineCaptor.capture());
     List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
 
     assertThat(budgetLines.get(0).caseId())
@@ -869,6 +899,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_should_use_external_id_as_username() {
     final String externalId = "i.am.login.id";
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag")))
         .user(FAKE_ENTITIES.randomUser().externalId(externalId));
     setPrerequisitesForSuccessfulPostTime(timeGroup);
     when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(true);
@@ -891,6 +922,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     final String externalId = "this-looks@like.email";
     final String loginId = "i.am.login.id";
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag")))
         .user(FAKE_ENTITIES.randomUser().externalId(externalId));
     setPrerequisitesForSuccessfulPostTime(timeGroup);
 
@@ -913,6 +945,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_should_use_email_for_getting_user() {
     final String patLoginId = "valid-patricia-login-id";
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag")))
         .user(FAKE_ENTITIES.randomUser().externalId(null)); // set external id to enable email check
     setPrerequisitesForSuccessfulPostTime(timeGroup);
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getEmail())).thenReturn(Optional.of(patLoginId));

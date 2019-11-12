@@ -175,11 +175,16 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
-      final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
-      if (!issue.isPresent()) {
-        log.warn("Can't find Patricia case for tag {}. No time will be posted for this tag.", tag.getName());
+      if (!createdByConnector(tag)) {
+        log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
+            tag.getName());
+        return Optional.empty();
       }
-      return issue;
+      final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
+      if (issue.isPresent()) {
+        return issue;
+      }
+      throw new CaseNotFoundException("Can't find Patricia case for tag " + tag.getName());
     };
 
     final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
@@ -227,7 +232,7 @@ public class PatriciaConnector implements WiseTimeConnector {
             .chargeableHours(chargeableHoursPerCase)
             .recordalDate(activityStartTime.get())
             .build()
-    );
+        );
 
     log.debug("Posted time after modification: {}",
         Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
@@ -235,15 +240,20 @@ public class PatriciaConnector implements WiseTimeConnector {
     try {
       patriciaDao.asTransaction(() ->
           userPostedTime
-          .getTags()
-          .stream()
+              .getTags()
+              .stream()
 
-          .map(findCase)
-          .filter(Optional::isPresent)
-          .map(Optional::get)
+              .map(findCase)
+              .filter(Optional::isPresent)
+              .map(Optional::get)
 
-          .forEach(createTimeAndChargeRecord)
+              .forEach(createTimeAndChargeRecord)
       );
+    } catch (CaseNotFoundException e) {
+      log.warn("Can't post time to the Patricia database: " + e.getMessage());
+      return PostResult.PERMANENT_FAILURE()
+          .withError(e)
+          .withMessage(e.getMessage());
     } catch (ConnectorException e) {
       return PostResult.PERMANENT_FAILURE()
           .withError(e)
@@ -455,7 +465,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     return patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
         .orElseThrow(() -> new ConnectorException(
             "Could not find currency for the case " + params.patriciaCase().caseNumber()
-                    + ". Please make sure an account address is configured for this case in the 'Parties' tab.")
+                + ". Please make sure an account address is configured for this case in the 'Parties' tab.")
         );
   }
 
@@ -547,5 +557,16 @@ public class PatriciaConnector implements WiseTimeConnector {
   @Override
   public void shutdown() {
     patriciaDao.shutdown();
+  }
+
+  private boolean createdByConnector(Tag tag) {
+    return tag.getPath().equals(tagUpsertPath() + tag.getName()) ||
+        tag.getPath().equals(StringUtils.strip(tagUpsertPath(), "/"));
+  }
+
+  private static class CaseNotFoundException extends RuntimeException {
+    CaseNotFoundException(String message) {
+      super(message);
+    }
   }
 }
