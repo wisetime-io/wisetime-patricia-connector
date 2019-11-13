@@ -165,6 +165,28 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
+  void postTime_tag_non_patricia_tag() {
+    Tag tag = FAKE_ENTITIES.randomTag("/NonPatricia/", "tag");
+    TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(tag));
+    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
+
+    String userLogin = FAKER.internet().uuid();
+    String dbDate = LocalDateTime.now().toString();
+    String currency = FAKER.currency().code();
+    BigDecimal hourlyRate = BigDecimal.TEN;
+
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
+        .as("tag is not Patricia tag")
+        .isEqualTo(PostResult.SUCCESS().getStatus());
+  }
+
+  @Test
   void postTime_noTimeRows() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTimeRows(Collections.emptyList());

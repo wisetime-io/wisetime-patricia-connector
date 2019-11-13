@@ -184,7 +184,7 @@ public class PatriciaConnector implements WiseTimeConnector {
       if (issue.isPresent()) {
         return issue;
       }
-      throw new CaseNotFoundException("Can't find Patricia case for tag " + tag.getName());
+      throw new ConnectorException("Can't find Patricia case for tag " + tag.getName());
     };
 
     final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
@@ -249,12 +249,8 @@ public class PatriciaConnector implements WiseTimeConnector {
 
               .forEach(createTimeAndChargeRecord)
       );
-    } catch (CaseNotFoundException e) {
-      log.warn("Can't post time to the Patricia database: " + e.getMessage());
-      return PostResult.PERMANENT_FAILURE()
-          .withError(e)
-          .withMessage(e.getMessage());
     } catch (ConnectorException e) {
+      log.warn("Can't post time to the Patricia database: " + e.getMessage());
       return PostResult.PERMANENT_FAILURE()
           .withError(e)
           .withMessage(e.getMessage());
@@ -562,11 +558,5 @@ public class PatriciaConnector implements WiseTimeConnector {
   private boolean createdByConnector(Tag tag) {
     return tag.getPath().equals(tagUpsertPath() + tag.getName()) ||
         tag.getPath().equals(StringUtils.strip(tagUpsertPath(), "/"));
-  }
-
-  private static class CaseNotFoundException extends RuntimeException {
-    CaseNotFoundException(String message) {
-      super(message);
-    }
   }
 }
