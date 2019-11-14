@@ -50,6 +50,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
 
   private static final Faker FAKER = new Faker();
   private static final FakeEntities FAKE_ENTITIES = new FakeEntities();
+  private static final String TAG_UPSERT_PATH = "/Patricia/";
 
   private static RandomDataGenerator randomDataGenerator = new RandomDataGenerator();
   private static PatriciaDao patriciaDaoMock = mock(PatriciaDao.class);
@@ -60,6 +61,7 @@ class PatriciaConnectorPostTimeNarrativeTest {
   @BeforeAll
   static void setUp() {
     RuntimeConfig.rebuild();
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TAG_UPSERT_PATH, TAG_UPSERT_PATH);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.TIMEZONE, "Asia/Manila");
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
 
@@ -111,7 +113,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/", "tag1"),
+            FAKE_ENTITIES.randomTag("/Patricia/", "tag2")))
         .timeRows(ImmutableList.of(earliestTimeRow, latestTimeRow))
         .user(user)
         .totalDurationSecs(4006)
@@ -174,7 +177,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1"),
+            FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2")))
         .timeRows(ImmutableList.of(earliestTimeRow, latestTimeRow))
         .user(user)
         .totalDurationSecs(3600)
@@ -239,7 +243,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1"),
+            FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2")))
         .timeRows(ImmutableList.of(timeRow))
         .user(user)
         .totalDurationSecs(120)
@@ -299,7 +304,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1"),
+            FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2")))
         .timeRows(ImmutableList.of(timeRow))
         .user(user)
         .totalDurationSecs(300)
@@ -354,7 +360,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1"),
+            FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2")))
         .timeRows(ImmutableList.of(timeRow1, timeRow2))
         .user(user)
         .totalDurationSecs(300)
@@ -392,7 +399,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1"),
+            FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2")))
         .timeRows(ImmutableList.of(timeRow1, timeRow2))
         .user(user)
         .totalDurationSecs(300)
@@ -435,7 +443,8 @@ class PatriciaConnectorPostTimeNarrativeTest {
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, null);
 
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
-        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag("/Patricia/"), FAKE_ENTITIES.randomTag("/Patricia/")))
+        .tags(ImmutableList.of(FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1"),
+            FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2")))
         .timeRows(ImmutableList.of(nullWindowTitle, emptyWindowTitle))
         .user(user)
         .totalDurationSecs(300)
