@@ -116,17 +116,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  void postTime_wrongCallerId() {
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, FAKER.lorem().word());
-    assertThat(connector.postTime(fakeRequest(), FAKE_ENTITIES.randomTimeGroup()))
-        .usingRecursiveComparison()
-        .as("caller id not matched")
-        .isEqualTo(PostResult.PERMANENT_FAILURE().withMessage("Invalid caller key in post time webhook call"));
-
-    verifyZeroInteractions(patriciaDaoMock);
-  }
-
-  @Test
   void postTime_noTags() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTags(Collections.emptyList());

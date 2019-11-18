@@ -151,11 +151,6 @@ public class PatriciaConnector implements WiseTimeConnector {
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
     log.info("Posted time received: {}", userPostedTime.getGroupId());
 
-    Optional<String> callerKeyOpt = callerKey();
-    if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
-      return PostResult.PERMANENT_FAILURE().withMessage("Invalid caller key in post time webhook call");
-    }
-
     if (userPostedTime.getTags().isEmpty()) {
       return PostResult.SUCCESS().withMessage("Time group has no tags. There is nothing to post to Patricia.");
     }
