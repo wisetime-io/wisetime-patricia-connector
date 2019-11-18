@@ -92,7 +92,7 @@ sourceSets {
 ext.jacocoLimits = [
         'instruction': 85,
         'line'       : 85,
-        'method'     : 84,
+        'method'     : 85,
         'class'      : 81
 ]
 

@@ -28,7 +28,6 @@ import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.api_client.ApiClient;
 import io.wisetime.connector.api_client.PostResult;
 import io.wisetime.connector.api_client.PostResult.PostResultStatus;
-import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.generated.connect.Tag;
@@ -97,8 +96,6 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @BeforeEach
   void setUpTest() {
-    RuntimeConfig.clearProperty(ConnectorConfigKey.CALLER_KEY);
-
     reset(patriciaDaoMock);
     reset(apiClientMock);
     reset(connectorStoreMock);
@@ -119,7 +116,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_noTags() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTags(Collections.emptyList());
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .usingRecursiveComparison()
@@ -134,7 +130,6 @@ class PatriciaConnectorPerformTimePostingHandling {
     Tag tag = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag_not_exists");
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
         .tags(ImmutableList.of(tag));
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
     when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
         .thenReturn(Optional.empty());
 
@@ -158,7 +153,6 @@ class PatriciaConnectorPerformTimePostingHandling {
     Tag tag = FAKE_ENTITIES.randomTag("/NonPatricia/", "tag");
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
         .tags(ImmutableList.of(tag));
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
     String dbDate = LocalDateTime.now().toString();
@@ -179,7 +173,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_noTimeRows() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTimeRows(Collections.emptyList());
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .usingRecursiveComparison()
@@ -254,7 +247,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_noHourlyRate() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE);
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
@@ -281,8 +273,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .user(user)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .totalDurationSecs(1500);
-
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
@@ -315,8 +305,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .totalDurationSecs(1500);
 
     final Case patriciaCase = randomDataGenerator.randomCase();
-
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     String userLogin = FAKER.internet().uuid();
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
@@ -351,8 +339,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .user(user)
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .totalDurationSecs(1500);
-
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
 
     assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
         .as("Time group contains multiple activity type codes.")
@@ -392,7 +378,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .totalDurationSecs(900);
 
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
@@ -515,7 +500,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .totalDurationSecs(1500);
 
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
@@ -634,7 +618,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .totalDurationSecs(900);
 
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
@@ -761,7 +744,6 @@ class PatriciaConnectorPerformTimePostingHandling {
         .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
         .totalDurationSecs(900);
 
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
 
     final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
@@ -975,8 +957,6 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   private void setPrerequisitesForSuccessfulPostTime(TimeGroup timeGroup) {
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
-
     timeGroup.getTags().forEach(tag -> when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
         .thenReturn(Optional.of(randomDataGenerator.randomCase(tag.getName()))));
 

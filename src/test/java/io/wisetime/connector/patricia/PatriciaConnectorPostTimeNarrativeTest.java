@@ -22,7 +22,6 @@ import java.util.Optional;
 import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.api_client.ApiClient;
 import io.wisetime.connector.api_client.PostResult.PostResultStatus;
-import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.generated.connect.TimeGroup;
@@ -493,8 +492,6 @@ class PatriciaConnectorPostTimeNarrativeTest {
   }
 
   private void setPrerequisitesForSuccessfulPostTime(TimeGroup timeGroup) {
-    RuntimeConfig.setProperty(ConnectorConfigKey.CALLER_KEY, timeGroup.getCallerKey());
-
     timeGroup.getTags().forEach(tag -> when(patriciaDaoMock.findCaseByCaseNumber(tag.getName()))
         .thenReturn(Optional.of(randomDataGenerator.randomCase(tag.getName()))));
 
