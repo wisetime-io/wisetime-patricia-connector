@@ -41,7 +41,6 @@ import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.WiseTimeConnector;
 import io.wisetime.connector.api_client.ApiClient;
 import io.wisetime.connector.api_client.PostResult;
-import io.wisetime.connector.config.ConnectorConfigKey;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
@@ -150,11 +149,6 @@ public class PatriciaConnector implements WiseTimeConnector {
   @Override
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
     log.info("Posted time received: {}", userPostedTime.getGroupId());
-
-    Optional<String> callerKeyOpt = callerKey();
-    if (callerKeyOpt.isPresent() && !callerKeyOpt.get().equals(userPostedTime.getCallerKey())) {
-      return PostResult.PERMANENT_FAILURE().withMessage("Invalid caller key in post time webhook call");
-    }
 
     if (userPostedTime.getTags().isEmpty()) {
       return PostResult.SUCCESS().withMessage("Time group has no tags. There is nothing to post to Patricia.");
@@ -353,10 +347,6 @@ public class PatriciaConnector implements WiseTimeConnector {
     return workCodes.stream()
         .filter(StringUtils::isNotEmpty)
         .findAny();
-  }
-
-  private Optional<String> callerKey() {
-    return RuntimeConfig.getString(ConnectorConfigKey.CALLER_KEY);
   }
 
   private int tagUpsertBatchSize() {
