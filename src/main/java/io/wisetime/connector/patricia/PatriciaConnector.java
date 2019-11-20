@@ -556,7 +556,7 @@ public class PatriciaConnector implements WiseTimeConnector {
   }
 
   private boolean createdByConnector(Tag tag) {
-    return tag.getPath().equals(tagUpsertPath() + tag.getName()) ||
+    return tag.getPath().equals(tagUpsertPath()) ||
         tag.getPath().equals(StringUtils.strip(tagUpsertPath(), "/"));
   }
 }
