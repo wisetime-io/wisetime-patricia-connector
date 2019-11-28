@@ -169,11 +169,6 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
-      if (!createdByConnector(tag)) {
-        log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
-            tag.getName());
-        return Optional.empty();
-      }
       final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
       if (issue.isPresent()) {
         return issue;
@@ -195,6 +190,11 @@ public class PatriciaConnector implements WiseTimeConnector {
     if (zeroChargeWorkCodes.contains(workCode.get())) {
       userPostedTime.totalDurationSecs(0);
     }
+
+    List<Tag> relevantTags = userPostedTime.getTags().stream()
+        .filter(this::createdByConnector)
+        .collect(Collectors.toList());
+    userPostedTime.setTags(relevantTags);
 
     final BigDecimal actualWorkedHoursPerCase =
         ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(userPostedTime);
