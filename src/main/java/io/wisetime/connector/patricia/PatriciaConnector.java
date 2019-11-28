@@ -192,7 +192,14 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     List<Tag> relevantTags = userPostedTime.getTags().stream()
-        .filter(this::createdByConnector)
+        .filter(tag -> {
+          if (!createdByConnector(tag)) {
+            log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
+                tag.getName());
+            return false;
+          }
+          return true;
+        })
         .collect(Collectors.toList());
     userPostedTime.setTags(relevantTags);
 
