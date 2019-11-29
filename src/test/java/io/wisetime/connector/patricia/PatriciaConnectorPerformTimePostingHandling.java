@@ -473,6 +473,126 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
+  @SuppressWarnings({"MethodLength", "ExecutableStatementCount"})
+  void postTime_noSplittingForIrrelevantTags() {
+    final int chargeTypeId = FAKER.number().numberBetween(100, 1000);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID, chargeTypeId + "");
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag("/NotPatricia/", "tag2");
+
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110121)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(600)
+        .firstObservedInHour(0);
+    timeRow1.setDescription(FAKER.lorem().characters());
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110122)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(300)
+        .firstObservedInHour(0);
+    timeRow2.setDescription(FAKER.lorem().characters());
+
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(tag1, tag2))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .totalDurationSecs(900);
+
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
+
+    final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
+    final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+
+    when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
+        .thenReturn(Optional.of(patriciaCase1))
+        .thenReturn(Optional.of(patriciaCase2));
+
+    String userLogin = FAKER.internet().uuid();
+    String dbDate = LocalDateTime.now().toString();
+    String currency = FAKER.currency().code();
+    BigDecimal hourlyRate = BigDecimal.TEN;
+
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.of(currency));
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResultStatus.SUCCESS);
+
+    // Verify Time Registration creation
+    ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
+    verify(patriciaDaoMock, times(1)).addTimeRegistration(timeRegCaptor.capture());
+    List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
+
+    assertThat(timeRegistrations.get(0).caseId())
+        .as("time registration should have correct case id")
+        .isEqualTo(patriciaCase1.caseId());
+    assertThat(timeRegistrations.get(0).workCodeId())
+        .as("should use default work code")
+        .isEqualTo("DM");
+    assertThat(timeRegistrations.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
+        .isEqualTo(dbDate);
+    assertThat(timeRegistrations.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02");
+    assertThat(timeRegistrations.get(0).actualHours())
+        .as("actual hours should not be splitted")
+        .isEqualTo(BigDecimal.valueOf(0.25));
+    assertThat(timeRegistrations.get(0).chargeableHours())
+        .as("chargeable hours should not be splitted")
+        .isEqualByComparingTo(BigDecimal.valueOf(.13));
+    assertThat(timeRegistrations.get(0).comment())
+        .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
+        .isEqualTo("custom_comment");
+
+    // Verify Budget Line creation
+    ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
+    verify(patriciaDaoMock, times(1)).addBudgetLine(budgetLineCaptor.capture());
+    List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
+
+    assertThat(budgetLines.get(0).caseId())
+        .as("budget line should have correct case id")
+        .isEqualTo(patriciaCase1.caseId());
+    assertThat(budgetLines.get(0).workCodeId())
+        .as("should default to default work code")
+        .isEqualTo("DM");
+    assertThat(budgetLines.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02");
+    assertThat(budgetLines.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
+        .isEqualTo(dbDate);
+    assertThat(budgetLines.get(0).currency())
+        .as("currency should be set")
+        .isEqualTo(currency);
+    assertThat(budgetLines.get(0).hourlyRate())
+        .as("currency should be set")
+        .isEqualTo(hourlyRate);
+    assertThat(budgetLines.get(0).actualWorkTotalAmount())
+        .as("hourly rate * actual hours (applying experience rating)")
+        .isEqualByComparingTo(BigDecimal.valueOf(1.3));
+    assertThat(budgetLines.get(0).chargeableAmount())
+        .as("hourly rate * chargeable hours (applying experience rating and discounts)")
+        .isEqualByComparingTo(BigDecimal.valueOf(1.3));
+    assertThat(budgetLines.get(0).comment())
+        .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
+        .isEqualTo("custom_comment");
+    assertThat(budgetLines.get(0).chargeTypeId())
+        .as("should use the value of `WT_CHARGE_TYPE_ID` env variable when specified")
+        .isEqualTo(chargeTypeId);
+
+    verify(patriciaDaoMock, never()).getSystemDefaultCurrency();
+    RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID);
+  }
+
+  @Test
   void postTime_editedTotalDuration() {
     final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
     final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
