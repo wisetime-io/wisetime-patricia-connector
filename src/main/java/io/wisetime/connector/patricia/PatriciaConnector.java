@@ -150,6 +150,18 @@ public class PatriciaConnector implements WiseTimeConnector {
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
     log.info("Posted time received: {}", userPostedTime.getGroupId());
 
+    List<Tag> relevantTags = userPostedTime.getTags().stream()
+        .filter(tag -> {
+          if (!createdByConnector(tag)) {
+            log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
+                tag.getName());
+            return false;
+          }
+          return true;
+        })
+        .collect(Collectors.toList());
+    userPostedTime.setTags(relevantTags);
+
     if (userPostedTime.getTags().isEmpty()) {
       return PostResult.SUCCESS().withMessage("Time group has no tags. There is nothing to post to Patricia.");
     }
@@ -169,11 +181,6 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     final Function<Tag, Optional<Case>> findCase = tag -> {
-      if (!createdByConnector(tag)) {
-        log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
-            tag.getName());
-        return Optional.empty();
-      }
       final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
       if (issue.isPresent()) {
         return issue;
