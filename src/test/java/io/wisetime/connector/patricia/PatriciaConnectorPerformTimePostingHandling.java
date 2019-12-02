@@ -39,6 +39,7 @@ import spark.Request;
 import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
 import static io.wisetime.connector.patricia.PatriciaDao.Case;
 import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
+import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -173,6 +174,8 @@ class PatriciaConnectorPerformTimePostingHandling {
   void postTime_noTimeRows() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
     timeGroup.setTimeRows(Collections.emptyList());
+    timeGroup.getTags()
+        .forEach(tag -> tag.setPath(RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH).get()));
 
     assertThat(connector.postTime(fakeRequest(), timeGroup))
         .usingRecursiveComparison()
@@ -188,6 +191,8 @@ class PatriciaConnectorPerformTimePostingHandling {
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser()
             .externalId(externalId));
+    timeGroup.getTags()
+        .forEach(tag -> tag.setPath(RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH).get()));
 
     when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(false);
 
@@ -209,6 +214,8 @@ class PatriciaConnectorPerformTimePostingHandling {
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser()
             .externalId(externalId));
+    timeGroup.getTags()
+        .forEach(tag -> tag.setPath(RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH).get()));
 
     when(patriciaDaoMock.loginIdExists(externalId)).thenReturn(false);
     when(patriciaDaoMock.findLoginIdByEmail(externalId)).thenReturn(Optional.empty());
@@ -229,6 +236,8 @@ class PatriciaConnectorPerformTimePostingHandling {
     final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE)
         .user(FAKE_ENTITIES.randomUser()
             .externalId(null)); // we should only check on email if external id is not set
+    timeGroup.getTags()
+        .forEach(tag -> tag.setPath(RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH).get()));
 
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getEmail())).thenReturn(Optional.empty());
 
@@ -247,6 +256,8 @@ class PatriciaConnectorPerformTimePostingHandling {
   @Test
   void postTime_noHourlyRate() {
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup(ACTIVITY_TYPE_CODE);
+    timeGroup.getTags()
+        .forEach(tag -> tag.setPath(RuntimeConfig.getString(PatriciaConnectorConfigKey.TAG_UPSERT_PATH).get()));
 
     String userLogin = FAKER.internet().uuid();
     when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
