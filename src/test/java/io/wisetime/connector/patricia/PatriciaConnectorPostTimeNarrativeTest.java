@@ -86,14 +86,14 @@ class PatriciaConnectorPostTimeNarrativeTest {
     // Ensure PatriciaConnector#init will not fail
     doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.ADD_SUMMARY_TO_NARRATIVE, "false");
-    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock));
+    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock, 5));
   }
 
   private void initConnectorWithSummaryTemplate() {
     doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
 
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.ADD_SUMMARY_TO_NARRATIVE, "true");
-    connector.init(new ConnectorModule(apiClientMock, mock(ConnectorStore.class)));
+    connector.init(new ConnectorModule(apiClientMock, mock(ConnectorStore.class), 5));
   }
 
   @AfterEach

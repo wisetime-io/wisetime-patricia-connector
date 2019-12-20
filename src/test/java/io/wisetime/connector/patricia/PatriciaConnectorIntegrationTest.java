@@ -53,7 +53,7 @@ class PatriciaConnectorIntegrationTest {
 
     connector = injector.getInstance(PatriciaConnector.class);
 
-    connector.init(new ConnectorModule(mock(ApiClient.class), mock(ConnectorStore.class)));
+    connector.init(new ConnectorModule(mock(ApiClient.class), mock(ConnectorStore.class), 5));
   }
 
   @Test

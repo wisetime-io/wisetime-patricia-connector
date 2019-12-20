@@ -62,7 +62,7 @@ class PatriciaConnectorRefreshCasesTest {
     // Ensure PatriciaConnector#init will not fail
     doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
 
-    connectorModule = new ConnectorModule(apiClientMock, connectorStoreMock);
+    connectorModule = new ConnectorModule(apiClientMock, connectorStoreMock, 5);
     connector.init(connectorModule);
   }
 
