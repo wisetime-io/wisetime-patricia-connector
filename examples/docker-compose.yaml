@@ -61,6 +61,9 @@ services:
       # configures the connector to always use the system default currency instead of currency set for respective invoice recipient in name
       # USE_SYSDEFAULT_CURRENCY_FOR_POSTING: "true"
 
+      # configures the fallback currency to be used when the normal resolution of the currency failed
+      # FALLBACK_CURRENCY: "EUR"
+
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
       PATRICIA_ROLE_TYPE_ID: <role_type_id>
 

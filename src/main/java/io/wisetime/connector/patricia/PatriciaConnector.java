@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.wisetime.connector.patricia.util.ConnectorException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -451,11 +452,18 @@ public class PatriciaConnector implements WiseTimeConnector {
   }
 
   private String getCurrency(PatriciaDao.CreateTimeAndChargeParams params) {
+    Optional<String> fallbackCurrency = RuntimeConfig.getString(PatriciaConnectorConfigKey.FALLBACK_CURRENCY);
     if (RuntimeConfig.getBoolean(PatriciaConnectorConfigKey.USE_SYSDEFAULT_CURRENCY_FOR_POSTING).orElse(false)) {
-      return patriciaDao.getSystemDefaultCurrency()
+      return Stream.of(patriciaDao.getSystemDefaultCurrency(), fallbackCurrency)
+          .filter(Optional::isPresent)
+          .map(Optional::get)
+          .findFirst()
           .orElseThrow(() -> new ConnectorException("Could not find the system default currency."));
     }
-    return patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId)
+    return Stream.of(patriciaDao.findCurrency(params.patriciaCase().caseId(), roleTypeId), fallbackCurrency)
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .findFirst()
         .orElseThrow(() -> new ConnectorException(
             "Could not find currency for the case " + params.patriciaCase().caseNumber()
                 + ". Please make sure an account address is configured for this case in the 'Parties' tab.")
