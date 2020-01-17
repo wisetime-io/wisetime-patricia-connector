@@ -485,6 +485,133 @@ class PatriciaConnectorPerformTimePostingHandling {
 
   @Test
   @SuppressWarnings({"MethodLength", "ExecutableStatementCount"})
+  void postTime_FallbackCurrency() {
+    String currency = FAKER.currency().code();
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.FALLBACK_CURRENCY, currency);
+    final int chargeTypeId = FAKER.number().numberBetween(100, 1000);
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID, chargeTypeId + "");
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
+    final Tag tag3 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag3");
+
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110121)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(600)
+        .firstObservedInHour(0);
+    timeRow1.setDescription(FAKER.lorem().characters());
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110122)
+        .activityTypeCode(ACTIVITY_TYPE_CODE)
+        .durationSecs(300)
+        .firstObservedInHour(0);
+    timeRow2.setDescription(FAKER.lorem().characters());
+
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(tag1, tag2, tag3))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .totalDurationSecs(900);
+
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
+
+    final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
+    final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+    final Case patriciaCase3 = randomDataGenerator.randomCase(tag3.getName());
+
+    when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
+        .thenReturn(Optional.of(patriciaCase1))
+        .thenReturn(Optional.of(patriciaCase2))
+        .thenReturn(Optional.of(patriciaCase3));
+
+    String userLogin = FAKER.internet().uuid();
+    String dbDate = LocalDateTime.now().toString();
+    BigDecimal hourlyRate = BigDecimal.TEN;
+
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.findCurrency(anyLong(), anyInt())).thenReturn(Optional.empty());
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResultStatus.SUCCESS);
+
+    // Verify Time Registration creation
+    ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
+    verify(patriciaDaoMock, times(3)).addTimeRegistration(timeRegCaptor.capture());
+    List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
+
+    assertThat(timeRegistrations.get(0).caseId())
+        .as("time registration should have correct case id")
+        .isEqualTo(patriciaCase1.caseId());
+    assertThat(timeRegistrations.get(0).workCodeId())
+        .as("should use default work code")
+        .isEqualTo("DM");
+    assertThat(timeRegistrations.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
+        .isEqualTo(dbDate);
+    assertThat(timeRegistrations.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02");
+    assertThat(timeRegistrations.get(0).actualHours())
+        .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
+            "split equally between all tags ")
+        .isEqualTo(BigDecimal.valueOf(0.08));
+    assertThat(timeRegistrations.get(0).chargeableHours())
+        .as("chargeable hours should corresponds to the group duration, using user experience and " +
+            "split equally between all tags ")
+        .isEqualByComparingTo(BigDecimal.valueOf(.04));
+    assertThat(timeRegistrations.get(0).comment())
+        .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
+        .isEqualTo("custom_comment");
+
+    // Verify Budget Line creation
+    ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
+    verify(patriciaDaoMock, times(3)).addBudgetLine(budgetLineCaptor.capture());
+    List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
+
+    assertThat(budgetLines.get(0).caseId())
+        .as("budget line should have correct case id")
+        .isEqualTo(patriciaCase1.caseId());
+    assertThat(budgetLines.get(0).workCodeId())
+        .as("should default to default work code")
+        .isEqualTo("DM");
+    assertThat(budgetLines.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02");
+    assertThat(budgetLines.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
+        .isEqualTo(dbDate);
+    assertThat(budgetLines.get(0).currency())
+        .as("currency should be set")
+        .isEqualTo(currency);
+    assertThat(budgetLines.get(0).hourlyRate())
+        .as("currency should be set")
+        .isEqualTo(hourlyRate);
+    assertThat(budgetLines.get(0).actualWorkTotalAmount())
+        .as("hourly rate * actual hours (applying experience rating)")
+        .isEqualByComparingTo(BigDecimal.valueOf(.40));
+    assertThat(budgetLines.get(0).chargeableAmount())
+        .as("hourly rate * chargeable hours (applying experience rating and discounts)")
+        .isEqualByComparingTo(BigDecimal.valueOf(.40));
+    assertThat(budgetLines.get(0).comment())
+        .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
+        .isEqualTo("custom_comment");
+    assertThat(budgetLines.get(0).chargeTypeId())
+        .as("should use the value of `WT_CHARGE_TYPE_ID` env variable when specified")
+        .isEqualTo(chargeTypeId);
+
+    verify(patriciaDaoMock, never()).getSystemDefaultCurrency();
+    RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID);
+    RuntimeConfig.clearProperty(PatriciaConnectorConfigKey.FALLBACK_CURRENCY);
+  }
+
+  @Test
+  @SuppressWarnings({"MethodLength", "ExecutableStatementCount"})
   void postTime_noSplittingForIrrelevantTags() {
     final int chargeTypeId = FAKER.number().numberBetween(100, 1000);
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.WT_CHARGE_TYPE_ID, chargeTypeId + "");
@@ -972,6 +1099,136 @@ class PatriciaConnectorPerformTimePostingHandling {
         .isNull();
     verify(patriciaDaoMock, never()).findCurrency(anyLong(), anyInt());
     RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.USE_SYSDEFAULT_CURRENCY_FOR_POSTING);
+  }
+
+  @Test
+  @SuppressWarnings({"MethodLength", "ExecutableStatementCount"})
+  void postTime_systemCurrencyWithFallBack() {
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.USE_SYSDEFAULT_CURRENCY_FOR_POSTING, "true");
+    String currency = FAKER.currency().code();
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.FALLBACK_CURRENCY, currency);
+    final Tag tag1 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag1");
+    final Tag tag2 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag2");
+    final Tag tag3 = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag3");
+
+    final TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().activityHour(2018110121)
+        .activityTypeCode("zero1")
+        .durationSecs(600)
+        .firstObservedInHour(0)
+        .description(FAKER.lorem().characters());
+    final TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow()
+        .activityHour(2018110122)
+        .activityTypeCode("zero1")
+        .durationSecs(300)
+        .firstObservedInHour(0)
+        .description(FAKER.lorem().characters());
+
+    final User user = FAKE_ENTITIES.randomUser().experienceWeightingPercent(50);
+
+    final TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
+        .tags(ImmutableList.of(tag1, tag2, tag3))
+        .timeRows(ImmutableList.of(timeRow1, timeRow2))
+        .user(user)
+        .durationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS)
+        .totalDurationSecs(900);
+
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE, "custom_comment");
+
+    final Case patriciaCase1 = randomDataGenerator.randomCase(tag1.getName());
+    final Case patriciaCase2 = randomDataGenerator.randomCase(tag2.getName());
+    final Case patriciaCase3 = randomDataGenerator.randomCase(tag3.getName());
+
+    when(patriciaDaoMock.findCaseByCaseNumber(anyString()))
+        .thenReturn(Optional.of(patriciaCase1))
+        .thenReturn(Optional.of(patriciaCase2))
+        .thenReturn(Optional.of(patriciaCase3));
+
+    String userLogin = FAKER.internet().uuid();
+    String dbDate = LocalDateTime.now().toString();
+    BigDecimal hourlyRate = BigDecimal.TEN;
+
+    when(patriciaDaoMock.findLoginIdByEmail(timeGroup.getUser().getExternalId())).thenReturn(Optional.of(userLogin));
+    when(patriciaDaoMock.findUserHourlyRate(any(), eq(userLogin))).thenReturn(Optional.of(hourlyRate));
+    when(patriciaDaoMock.getDbDate()).thenReturn(dbDate);
+    when(patriciaDaoMock.getSystemDefaultCurrency()).thenReturn(Optional.empty());
+
+    assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
+        .as("Valid time group should be posted successfully")
+        .isEqualTo(PostResultStatus.SUCCESS);
+
+    // Verify Time Registration creation
+    ArgumentCaptor<TimeRegistration> timeRegCaptor = ArgumentCaptor.forClass(TimeRegistration.class);
+    verify(patriciaDaoMock, times(3)).addTimeRegistration(timeRegCaptor.capture());
+    List<TimeRegistration> timeRegistrations = timeRegCaptor.getAllValues();
+
+    assertThat(timeRegistrations.get(0).caseId())
+        .as("time registration should have correct case id")
+        .isEqualTo(patriciaCase1.caseId());
+    assertThat(timeRegistrations.get(0).workCodeId())
+        .as("should use zero amount work code")
+        .isEqualTo("zero1");
+    assertThat(timeRegistrations.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
+        .isEqualTo(dbDate);
+    assertThat(timeRegistrations.get(0).activityDate())
+        .as("activity date should equal to the activity date of the row in user time zone")
+        .isEqualTo("2018-11-02");
+    assertThat(timeRegistrations.get(0).actualHours())
+        .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
+            "split equally between all tags ")
+        .isEqualTo(BigDecimal.valueOf(0.08));
+    assertThat(timeRegistrations.get(0).chargeableHours())
+        .as("chargeable hours should be 0 for zero charge work codes")
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(timeRegistrations.get(0).comment())
+        .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
+        .isEqualTo("custom_comment");
+
+    // Verify Budget Line creation
+    ArgumentCaptor<BudgetLine> budgetLineCaptor = ArgumentCaptor.forClass(BudgetLine.class);
+    verify(patriciaDaoMock, times(3)).addBudgetLine(budgetLineCaptor.capture());
+    List<BudgetLine> budgetLines = budgetLineCaptor.getAllValues();
+
+    assertThat(budgetLines.get(0).caseId())
+        .as("budget line should have correct case id")
+        .isEqualTo(patriciaCase1.caseId());
+    assertThat(budgetLines.get(0).workCodeId())
+        .as("should use zero amount work code")
+        .isEqualTo("zero1");
+    assertThat(budgetLines.get(0).submissionDate())
+        .as("submission date should equal to the current DB date")
+        .isEqualTo(dbDate);
+    assertThat(budgetLines.get(0).currency())
+        .as("currency should be set")
+        .isEqualTo(currency);
+    assertThat(budgetLines.get(0).hourlyRate())
+        .as("currency should be set")
+        .isEqualTo(hourlyRate);
+    assertThat(budgetLines.get(0).actualWorkTotalHours())
+        .as("actual hours should corresponds to the total rows duration, disregarding user experience and " +
+            "split equally between all tags ")
+        .isEqualTo(BigDecimal.valueOf(0.08));
+    assertThat(budgetLines.get(0).actualWorkTotalAmount())
+        .as("chargeable hours should be 0 for zero charge work codes")
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(budgetLines.get(0).chargeableAmount())
+        .as("chargeable hours should be 0 for zero charge work codes")
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(budgetLines.get(0).comment())
+        .as("should use the value of `INVOICE_COMMENT_OVERRIDE` env variable when specified")
+        .isEqualTo("custom_comment");
+    assertThat(budgetLines.get(0).discountAmount())
+        .as("discount amount should be zero when zero charge code is used")
+        .isEqualTo(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+    assertThat(budgetLines.get(0).discountPercentage())
+        .as("discount percentage should be zero when zero charge code is used")
+        .isEqualTo(BigDecimal.ZERO);
+    assertThat(budgetLines.get(0).chargeTypeId())
+        .as("should use null when env variable `WT_CHARGE_TYPE_ID` is not specified")
+        .isNull();
+    verify(patriciaDaoMock, never()).findCurrency(anyLong(), anyInt());
+    RuntimeConfig.clearProperty(ConnectorLauncher.PatriciaConnectorConfigKey.USE_SYSDEFAULT_CURRENCY_FOR_POSTING);
+    RuntimeConfig.clearProperty(PatriciaConnectorConfigKey.FALLBACK_CURRENCY);
   }
 
   @Test
