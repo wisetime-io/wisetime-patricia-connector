@@ -19,12 +19,14 @@ In order to use the WiseTime Patricia Connector, you will need a [WiseTime Conne
 Configuration is done through environment variables. The following configuration options are required.
 
 | Environment Variable                      | Description                                                              |
-| ----------------------------------------  | ------------------------------------------------------------------------ |
-| API_KEY                                   | Your WiseTime Connect API Key                                            |
-| PATRICIA_JDBC_URL                         | The URL of the MSSQL DB that Patricia is using                           |
-| PATRICIA_JDBC_USERNAME                    | The username of the Patricia DB                                          |
-| PATRICIA_JDBC_PASSWORD                    | The password of the Patricia DB                                          |
-| PATRICIA_ROLE_TYPE_ID                     | The role type id from patricia database                                  |
+| ----------------------------------------  | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| API_KEY                                   | Your WiseTime Connect API Key                                                                                                                                                                 |
+| PATRICIA_JDBC_URL                         | The URL of the MSSQL DB that Patricia is using                                                                                                                                                |
+| PATRICIA_JDBC_USERNAME                    | The username of the Patricia DB                                                                                                                                                               |
+| PATRICIA_JDBC_PASSWORD                    | The password of the Patricia DB                                                                                                                                                               |
+| PATRICIA_ROLE_TYPE_ID                     | The role type id from patricia database                                                                                                                                                       |
+| PATRICIA_CASE_URL_PREFIX                  | If set, the connector will generate a URL when creating each tag. If a tag URL is available, the tag will be a clickable link in the WiseTime console. Clicking on the tag will open the URL. |
+
 
 The following configuration options are optional.
 
@@ -60,6 +62,7 @@ docker run -d \
     -e PATRICIA_JDBC_USERNAME=YourPatriciaDbUsername \
     -e PATRICIA_JDBC_PASSWORD=YourPatriciaDbPassword \
     -e PATRICIA_ROLE_TYPE_ID=YourPatriciaRoleTypeId \
+    -e PATRICIA_CASE_URL_PREFIX="http://edms.company.com:9080/casebrowser/#/case/" \
     wisetime/patricia-connector
 ```
 

@@ -22,6 +22,9 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Guice;
+
+import com.github.javafaker.Faker;
+
 import io.wisetime.connector.ConnectorModule;
 import io.wisetime.connector.api_client.ApiClient;
 import io.wisetime.connector.config.RuntimeConfig;
@@ -52,7 +55,8 @@ class PatriciaConnectorSyncNewCasesTest {
 
     // Set a role type id to use
     RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_ROLE_TYPE_ID, "4");
-
+    RuntimeConfig.setProperty(ConnectorLauncher.PatriciaConnectorConfigKey.PATRICIA_CASE_URL_PREFIX,
+        new Faker().internet().url() + "/");
     connector = Guice.createInjector(binder -> {
       binder.bind(PatriciaDao.class).toProvider(() -> patriciaDaoMock);
     }).getInstance(PatriciaConnector.class);
