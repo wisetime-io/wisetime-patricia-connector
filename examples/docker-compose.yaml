@@ -64,6 +64,9 @@ services:
       # configures the fallback currency to be used when all other currency resolution fails
       # FALLBACK_CURRENCY: "EUR"
 
+      # Patricia DMS case URL prefix can be used to generate a URL when creating tags. If a URL is present, the tag will be clickable in WiseTime. Clicking on the tag will open the URL of related case.
+      # PATRICIA_CASE_URL_PREFIX: http://edms.company.com:9080/casebrowser/#/case/
+
       # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
       PATRICIA_ROLE_TYPE_ID: <role_type_id>
 

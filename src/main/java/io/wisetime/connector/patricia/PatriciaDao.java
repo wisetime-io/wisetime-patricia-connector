@@ -34,6 +34,8 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import io.wisetime.connector.config.RuntimeConfig;
+import io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
 import io.wisetime.generated.connect.UpsertTagRequest;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -464,6 +466,8 @@ public class PatriciaDao {
       upsertTagRequest.path(path);
       upsertTagRequest.name(caseNumber());
       upsertTagRequest.setDescription(StringUtils.trimToEmpty(caseCatchWord()));
+      RuntimeConfig.getString(PatriciaConnectorConfigKey.PATRICIA_CASE_URL_PREFIX)
+          .ifPresent(urlPrefix -> upsertTagRequest.url(urlPrefix + caseNumber()));
       return upsertTagRequest;
     }
   }
