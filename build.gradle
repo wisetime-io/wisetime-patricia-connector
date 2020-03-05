@@ -60,7 +60,7 @@ jib {
     } else {
         println 'building image with (default) architecture: amd64'
         from {
-            image = "gcr.io/pi-gcp/jdk:8"
+            image = "wisetime/wisetime-java8-connector"
         }
         to {
             image = "wisetime/wisetime-patricia-connector"
