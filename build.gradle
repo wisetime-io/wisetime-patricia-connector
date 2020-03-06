@@ -59,6 +59,9 @@ jib {
         }
     } else {
         println 'building image with (default) architecture: amd64'
+        from {
+            image = "wisetime/wisetime-java8-connector"
+        }
         to {
             image = "wisetime/wisetime-patricia-connector"
         }
@@ -103,7 +106,7 @@ if (taskRequestString.contains("dependencyUpdates") || taskRequestString.contain
 }
 
 dependencies {
-    compile 'io.wisetime:wisetime-connector:2.3.1-1'
+    compile 'io.wisetime:wisetime-connector:2.3.2'
     compile ('com.google.inject:guice:4.2.2:no_aop') {
         exclude group: 'com.google.guava', module: 'guava'
     }
