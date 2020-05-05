@@ -243,23 +243,23 @@ class ChargeCalculatorTest {
     TimeRow timeRow1 = FAKE_ENTITIES.randomTimeRow().durationSecs(800);
     TimeRow timeRow2 = FAKE_ENTITIES.randomTimeRow().durationSecs(200);
 
+    // time groups can only have at most one tag and duration split strategy is deprecated
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup();
-    timeGroup.setTags(ImmutableList.of(FAKE_ENTITIES.randomTag(), FAKE_ENTITIES.randomTag()));
+    timeGroup.setTags(ImmutableList.of(FAKE_ENTITIES.randomTag()));
     timeGroup.setTimeRows(ImmutableList.of(timeRow1, timeRow2));
     timeGroup.setTotalDurationSecs(1500);
-    timeGroup.setDurationSplitStrategy(TimeGroup.DurationSplitStrategyEnum.DIVIDE_BETWEEN_TAGS);
     timeGroup.getUser().experienceWeightingPercent(50);
 
-    assertThat(ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(timeGroup))
+    assertThat(ChargeCalculator.calculateActualWorkedHoursNoExpRating(timeGroup))
+        .isEqualByComparingTo(BigDecimal.valueOf(0.28)); // 1000 secs
+
+    assertThat(ChargeCalculator.calculateActualWorkedHoursWithExpRating(timeGroup))
         .isEqualByComparingTo(BigDecimal.valueOf(0.14)); // 500 secs
 
-    assertThat(ChargeCalculator.calculateActualWorkedHoursWithExpRatingPerCase(timeGroup))
-        .isEqualByComparingTo(BigDecimal.valueOf(0.07)); // 250 secs
+    assertThat(ChargeCalculator.calculateChargeableWorkedHoursNoExpRating(timeGroup))
+        .isEqualByComparingTo(BigDecimal.valueOf(0.42)); // 1500 secs
 
-    assertThat(ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(timeGroup))
+    assertThat(ChargeCalculator.calculateChargeableWorkedHoursWithExpRating(timeGroup))
         .isEqualByComparingTo(BigDecimal.valueOf(0.21)); // 750 secs
-
-    assertThat(ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(timeGroup))
-        .isEqualByComparingTo(BigDecimal.valueOf(0.10)); // 375 secs
   }
 }

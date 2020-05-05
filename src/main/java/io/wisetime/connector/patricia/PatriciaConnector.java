@@ -110,7 +110,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     chargeTemplate = createTemplateFormatter(
         "classpath:narrative-template/patricia-template_charge.ftl");
 
-    tagSyncIntervalMinutes = connectorModule::getTagSyncIntervalMinutes;
+    tagSyncIntervalMinutes = connectorModule::getTagSlowLoopIntervalMinutes;
     apiClient = connectorModule.getApiClient();
     connectorStore = connectorModule.getConnectorStore();
   }
@@ -131,15 +131,20 @@ public class PatriciaConnector implements WiseTimeConnector {
   /**
    * Called by the WiseTime Connector library on a regular schedule.
    *
-   *   1. Finds all Patricia cases that haven't been synced and creates matching tags for them in WiseTime.
-   *      Blocks until all cases have been synced.
-   *
-   *   2. Sends a batch of already synced cases to WiseTime to maintain freshness of existing tags.
-   *      Mitigates effect of renamed or missed tags. Only one refresh batch per performTagUpdate() call.
+   * Finds all Patricia cases that haven't been synced and creates matching tags for them in WiseTime.
+   * Blocks until all cases have been synced.
    */
   @Override
   public void performTagUpdate() {
     syncNewCases();
+  }
+
+  /**
+   * Sends a batch of already synced cases to WiseTime to maintain freshness of existing tags.
+   * Mitigates effect of renamed or missed tags.
+   */
+  @Override
+  public void performTagUpdateSlowLoop() {
     refreshCases(tagRefreshBatchSize());
   }
 
@@ -205,15 +210,15 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
 
     final BigDecimal actualWorkedHoursPerCase =
-        ChargeCalculator.calculateActualWorkedHoursNoExpRatingPerCase(userPostedTime);
+        ChargeCalculator.calculateActualWorkedHoursNoExpRating(userPostedTime);
 
     final BigDecimal chargeableHoursPerCase;
     if (ChargeCalculator.wasTotalDurationEdited(userPostedTime)) {
       // time was edited -> use the edited time as is (no exp rating)
-      chargeableHoursPerCase = ChargeCalculator.calculateChargeableWorkedHoursNoExpRatingPerCase(userPostedTime);
+      chargeableHoursPerCase = ChargeCalculator.calculateChargeableWorkedHoursNoExpRating(userPostedTime);
     } else {
       // time was not edited -> use the experience rating
-      chargeableHoursPerCase = ChargeCalculator.calculateChargeableWorkedHoursWithExpRatingPerCase(userPostedTime);
+      chargeableHoursPerCase = ChargeCalculator.calculateChargeableWorkedHoursWithExpRating(userPostedTime);
     }
 
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
