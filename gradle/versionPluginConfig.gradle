@@ -25,5 +25,3 @@ tasks.dependencyUpdates {
     outputFormatter = "json"
     reportfileName = "report"
 }
-
-tasks.versionCheck.dependsOn(dependencyUpdates)

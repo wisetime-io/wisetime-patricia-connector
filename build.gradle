@@ -100,7 +100,7 @@ ext.jacocoLimits = [
 ]
 
 def taskRequestString = getGradle().getStartParameter().getTaskRequests().toString()
-if (taskRequestString.contains("dependencyUpdates") || taskRequestString.contains("versionCheck")) {
+if (taskRequestString.contains("dependencyUpdates")) {
     // add exclusions for reporting on updates and vulnerabilities
     apply from: "$rootDir/gradle/versionPluginConfig.gradle"
 }
