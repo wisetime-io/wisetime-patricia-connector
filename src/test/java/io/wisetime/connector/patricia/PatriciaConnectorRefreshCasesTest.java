@@ -170,6 +170,6 @@ class PatriciaConnectorRefreshCasesTest {
     when(patriciaDaoMock.casesCount()).thenReturn(400_000L);
     assertThat(connector.tagRefreshBatchSize())
         .as("Calculated batch size was greater than the minimum and less than the maximum")
-        .isEqualTo(400_000 / (fourteenDaysInMinutes / connectorModule.getTagSyncIntervalMinutes()));
+        .isEqualTo(400_000 / (fourteenDaysInMinutes / connectorModule.getTagSlowLoopIntervalMinutes()));
   }
 }

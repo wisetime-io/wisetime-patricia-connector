@@ -100,45 +100,41 @@ public class ChargeCalculator {
     return totalCharge.divide(durationInHours, 2, RoundingMode.HALF_UP);
   }
 
-  public static BigDecimal calculateActualWorkedHoursNoExpRatingPerCase(TimeGroup userPostedTime) {
+  public static BigDecimal calculateActualWorkedHoursNoExpRating(TimeGroup userPostedTime) {
     return toHours(
         DurationCalculator
             .of(userPostedTime)
             .useDurationFrom(DurationSource.SUM_TIME_ROWS)
             .disregardExperienceWeighting()
             .calculate()
-            .getPerTagDuration()
     );
   }
 
-  public static BigDecimal calculateActualWorkedHoursWithExpRatingPerCase(TimeGroup userPostedTime) {
+  public static BigDecimal calculateActualWorkedHoursWithExpRating(TimeGroup userPostedTime) {
     return toHours(
         DurationCalculator
             .of(userPostedTime)
             .useDurationFrom(DurationSource.SUM_TIME_ROWS)
             .calculate()
-            .getPerTagDuration()
     );
   }
 
-  public static BigDecimal calculateChargeableWorkedHoursNoExpRatingPerCase(TimeGroup userPostedTime) {
+  public static BigDecimal calculateChargeableWorkedHoursNoExpRating(TimeGroup userPostedTime) {
     return toHours(
         DurationCalculator
             .of(userPostedTime)
             .useDurationFrom(DurationSource.TIME_GROUP)
             .disregardExperienceWeighting()
             .calculate()
-            .getPerTagDuration()
     );
   }
 
-  public static BigDecimal calculateChargeableWorkedHoursWithExpRatingPerCase(TimeGroup userPostedTime) {
+  public static BigDecimal calculateChargeableWorkedHoursWithExpRating(TimeGroup userPostedTime) {
     return toHours(
         DurationCalculator
             .of(userPostedTime)
             .useDurationFrom(DurationSource.TIME_GROUP)
             .calculate()
-            .getPerTagDuration()
     );
   }
 

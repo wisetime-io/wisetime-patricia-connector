@@ -15,7 +15,7 @@ buildscript {
     }
     dependencies {
         // https://github.com/GoogleContainerTools/jib/issues/1018
-        classpath('org.apache.httpcomponents:httpclient:4.0.1') {
+        classpath('org.apache.httpcomponents:httpclient:4.5.12') {
             force = true
         }
     }
@@ -31,7 +31,7 @@ plugins {
     id 'maven'
     id "com.github.ben-manes.versions" version '0.21.0'
     id 'net.ltgt.apt' version '0.21'
-    id 'io.wisetime.versionChecker' version '0.8.0-0'
+    id 'io.wisetime.versionChecker' version '0.9.13'
 }
 
 apply from: "$rootDir/gradle/conf/checkstyle.gradle"
@@ -100,17 +100,17 @@ ext.jacocoLimits = [
 ]
 
 def taskRequestString = getGradle().getStartParameter().getTaskRequests().toString()
-if (taskRequestString.contains("dependencyUpdates") || taskRequestString.contains("versionCheck")) {
+if (taskRequestString.contains("dependencyUpdates")) {
     // add exclusions for reporting on updates and vulnerabilities
     apply from: "$rootDir/gradle/versionPluginConfig.gradle"
 }
 
 dependencies {
-    compile 'io.wisetime:wisetime-connector:2.3.2'
+    compile 'io.wisetime:wisetime-connector:2.3.3'
     compile ('com.google.inject:guice:4.2.2:no_aop') {
         exclude group: 'com.google.guava', module: 'guava'
     }
-    compile 'com.google.guava:guava:27.1-jre'
+    compile 'com.google.guava:guava:28.2-jre'
 
     compile 'org.codejargon:fluentjdbc:1.8.3'
     compile 'com.zaxxer:HikariCP:3.3.1'
