@@ -123,6 +123,7 @@ dependencies {
     compile 'org.slf4j:slf4j-api:1.7.25'
     compile 'net.objecthunter:exp4j:0.4.8'
 
+    testCompile 'io.wisetime:wisetime-test-support:2.4.1'
     testCompile 'org.junit.jupiter:junit-jupiter:5.4.2'
     testCompile 'org.mockito:mockito-core:2.27.0'
     testCompile 'org.assertj:assertj-core:3.12.2'
@@ -130,8 +131,6 @@ dependencies {
         exclude group: 'org.apache.commons', module: 'commons-lang3'
     }
     testCompile 'org.flywaydb:flyway-core:5.1.1'
-    // versions 1.4.198 and 1.4.199 fail when dealing with `getdate()` function
-    testRuntime 'com.h2database:h2:1.4.197'
 }
 
 test {

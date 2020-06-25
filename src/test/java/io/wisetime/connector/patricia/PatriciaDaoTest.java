@@ -14,6 +14,9 @@ import com.google.inject.Provider;
 import com.github.javafaker.Faker;
 import com.zaxxer.hikari.HikariDataSource;
 
+import io.wisetime.test_docker.ContainerRuntimeSpec;
+import io.wisetime.test_docker.DockerLauncher;
+import io.wisetime.test_docker.containers.SqlServer;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
 import org.codejargon.fluentjdbc.api.mapper.Mappers;
@@ -48,7 +51,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PatriciaDaoTest {
 
-  private static final String TEST_JDBC_URL = "jdbc:h2:mem:test_patricia_db;DB_CLOSE_DELAY=-1";
   private static final RandomDataGenerator RANDOM_DATA_GENERATOR = new RandomDataGenerator();
   private static final Faker FAKER = new Faker();
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -56,12 +58,20 @@ class PatriciaDaoTest {
   private static PatriciaDao patriciaDao;
   private static FluentJdbc fluentJdbc;
 
-  @BeforeAll
-  static void setup() {
-    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_URL, TEST_JDBC_URL);
-    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_USERNAME, "test");
-    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_PASSWORD, "test");
+  private static String jdbcUrl;
 
+  @BeforeAll
+  static void setup() throws InterruptedException {
+    DockerLauncher staticLauncher = DockerLauncher.instance();
+    SqlServer sqlServer = new SqlServer();
+    ContainerRuntimeSpec container = staticLauncher.createContainer(sqlServer);
+    jdbcUrl = sqlServer.getJdbcUrl(container);
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_URL, jdbcUrl);
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_USERNAME, sqlServer.getUsername());
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_JDBC_PASSWORD, sqlServer.getPassword());
+
+    // If we don't wait the authentication to sql server seems to fail more often than not...
+    Thread.sleep(10000);
     final Injector injector = Guice.createInjector(
         new PatriciaDbModule(), new FlywayPatriciaTestDbModule()
     );
@@ -84,7 +94,7 @@ class PatriciaDaoTest {
   void setupTests() {
     Preconditions.checkState(
         // We don't want to accidentally truncate production tables
-        RuntimeConfig.getString(PatriciaConnectorConfigKey.PATRICIA_JDBC_URL).orElse("").equals(TEST_JDBC_URL)
+        RuntimeConfig.getString(PatriciaConnectorConfigKey.PATRICIA_JDBC_URL).orElse("").equals(jdbcUrl)
     );
     Query query = fluentJdbc.query();
     query.update("DELETE FROM vw_case_number").run();
@@ -97,6 +107,10 @@ class PatriciaDaoTest {
     query.update("DELETE FROM time_registration").run();
     query.update("DELETE FROM budget_line").run();
     query.update("DELETE FROM work_code").run();
+    query.update("DELETE FROM chargeing_price_list").run();
+    query.update("DELETE FROM case_category").run();
+    query.update("DELETE FROM case_type_definition").run();
+    query.update("DELETE FROM CASE_TYPE_DEFAULT_STATE").run();
     removeAllDiscounts();
   }
 
@@ -107,12 +121,12 @@ class PatriciaDaoTest {
         .isTrue();
 
     Query query = fluentJdbc.query();
-    query.update("ALTER TABLE vw_case_number DROP case_number").run();
+    query.update("ALTER TABLE vw_case_number DROP column case_number").run();
     assertThat(patriciaDao.hasExpectedSchema())
         .as("A missing column should be detected")
         .isFalse();
 
-    query.update("ALTER TABLE vw_case_number ADD COLUMN case_number varchar(40) NOT NULL").run();
+    query.update("ALTER TABLE vw_case_number ADD case_number varchar(40) NOT NULL").run();
     assertThat(patriciaDao.hasExpectedSchema())
         .as("The missing column has been added")
         .isTrue();
@@ -234,7 +248,7 @@ class PatriciaDaoTest {
   }
 
   @Test
-  void findUserHourlyRate() {
+  void findHourlyRate() {
     double personGeneralHourlyRate = FAKER.number().randomDigitNotZero();
     double personHourlyRateForWorkCode = personGeneralHourlyRate + 10;
     double defaultRateForWorkCode = personHourlyRateForWorkCode + 10;
@@ -245,20 +259,20 @@ class PatriciaDaoTest {
     saveDefaultWorkCodeRate("workCode", defaultRateForWorkCode, 0);
     saveDefaultWorkCodeRate("workCode2", defaultRateForWorkCode, 1);
 
-    assertThat(patriciaDao.findUserHourlyRate("workCode2", "username1").get())
+    assertThat(patriciaDao.findWorkCodeDefaultHourlyRate("workCode2").get())
         .as("should get the default work code rate when replace_amount is 1")
         .isEqualByComparingTo(BigDecimal.valueOf(defaultRateForWorkCode));
 
-    assertThat(patriciaDao.findUserHourlyRate("workCode", "username1").get())
+    assertThat(patriciaDao.findPatPersonHourlyRate("workCode", "username1").get())
         .as("should get the user's hourly rate for work code if set " +
             "and skip default work code rate when replace_amount is not 1")
         .isEqualByComparingTo(BigDecimal.valueOf(personHourlyRateForWorkCode));
 
-    assertThat(patriciaDao.findUserHourlyRate("workCode", "username2").get())
+    assertThat(patriciaDao.findPersonDefaultHourlyRate("username2").get())
         .as("should get the user's general hourly rate if no rate set for work code")
         .isEqualByComparingTo(BigDecimal.valueOf(personGeneralHourlyRate));
 
-    assertThat(patriciaDao.findUserHourlyRate("workCode", "username3"))
+    assertThat(patriciaDao.findPersonDefaultHourlyRate("username3"))
         .as("should not retrieve any hourly rate if none is set")
         .isEmpty();
   }
@@ -313,13 +327,13 @@ class PatriciaDaoTest {
     patriciaDao.updateBudgetHeader(caseId, recordalDate);
     assertThat(getBudgetHeaderEditDate(caseId))
         .as("should be able to save the budget header record")
-        .isEqualTo(recordalDate);
+        .startsWith(recordalDate);
 
     String newRecordalDate = LocalDateTime.now().minusDays(1).format(DATE_TIME_FORMATTER);
     patriciaDao.updateBudgetHeader(caseId, newRecordalDate);
     assertThat(getBudgetHeaderEditDate(caseId))
         .as("should be able to update the budget header's record date")
-        .isEqualTo(newRecordalDate);
+        .startsWith(newRecordalDate);
   }
 
   @Test
@@ -354,12 +368,12 @@ class PatriciaDaoTest {
               .isEqualTo(timeRegistration.caseId());
           assertThat(rs.getString(3))
               .as("should have save correct submission date")
-              .isEqualTo(timeRegistration.submissionDate());
+              .startsWith(timeRegistration.submissionDate());
           assertThat(rs.getString(4))
               .as("should have save correct user id date")
               .isEqualTo(timeRegistration.userId());
           assertThat(rs.getString(5))
-              .isEqualTo(timeRegistration.activityDate());
+              .startsWith(timeRegistration.activityDate());
           assertThat(rs.getBigDecimal(6))
               .as("should have set correct actual hours")
               .isEqualByComparingTo(timeRegistration.actualHours());
@@ -372,7 +386,7 @@ class PatriciaDaoTest {
           assertThat(rs.getLong(11)).isEqualTo(timeRegistration.caseId());
           assertThat(rs.getString(12)).isEqualTo(timeRegistration.comment());
           assertThat(rs.getString(13)).isEqualTo(timeRegistration.comment());
-          assertThat(rs.getString(14)).isEqualTo(timeRegistration.submissionDate());
+          assertThat(rs.getString(14)).startsWith(timeRegistration.submissionDate());
           assertThat(rs.getInt(15)).isEqualTo(timeRegistration.budgetLineSequenceNumber());
 
           return Void.TYPE;
@@ -428,15 +442,15 @@ class PatriciaDaoTest {
           assertThat(rs.getLong(11)).isEqualTo(budgetLine.caseId());
           assertThat(rs.getInt(12)).isEqualTo(1);
           assertThat(rs.getString(13)).isEqualTo(budgetLine.userId());
-          assertThat(rs.getString(14)).isEqualTo(budgetLine.submissionDate());
+          assertThat(rs.getString(14)).startsWith(budgetLine.submissionDate());
           assertThat(rs.getString(15)).isEqualTo(budgetLine.comment());
-          assertThat(rs.getString(16)).isEqualTo(budgetLine.submissionDate());
+          assertThat(rs.getString(16)).startsWith(budgetLine.submissionDate());
           assertThat(rs.getBigDecimal(17)).isEqualByComparingTo(budgetLine.discountPercentage());
           assertThat(rs.getBigDecimal(18)).isEqualByComparingTo(budgetLine.discountAmount());
           assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());
           assertThat(rs.getInt(20)).isEqualTo(1);
           assertThat(rs.getString(21)).isEqualTo("TT");
-          assertThat(rs.getString(22)).isEqualTo(budgetLine.activityDate());
+          assertThat(rs.getString(22)).startsWith(budgetLine.activityDate());
           assertThat(rs.getObject(23)).isNull();
 
           return Void.TYPE;
@@ -494,15 +508,15 @@ class PatriciaDaoTest {
           assertThat(rs.getLong(11)).isEqualTo(budgetLine.caseId());
           assertThat(rs.getInt(12)).isEqualTo(1);
           assertThat(rs.getString(13)).isEqualTo(budgetLine.userId());
-          assertThat(rs.getString(14)).isEqualTo(budgetLine.submissionDate());
+          assertThat(rs.getString(14)).startsWith(budgetLine.submissionDate());
           assertThat(rs.getString(15)).isEqualTo(budgetLine.comment());
-          assertThat(rs.getString(16)).isEqualTo(budgetLine.submissionDate());
+          assertThat(rs.getString(16)).startsWith(budgetLine.submissionDate());
           assertThat(rs.getBigDecimal(17)).isEqualByComparingTo(budgetLine.discountPercentage());
           assertThat(rs.getBigDecimal(18)).isEqualByComparingTo(budgetLine.discountAmount());
           assertThat(rs.getString(19)).isEqualTo(budgetLine.currency());
           assertThat(rs.getInt(20)).isEqualTo(1);
           assertThat(rs.getString(21)).isEqualTo("TT");
-          assertThat(rs.getString(22)).isEqualTo(budgetLine.activityDate());
+          assertThat(rs.getString(22)).startsWith(budgetLine.activityDate());
           assertThat(rs.getInt(23)).isEqualTo(budgetLine.chargeTypeId());
 
           return Void.TYPE;
@@ -511,6 +525,85 @@ class PatriciaDaoTest {
     assertThat(patriciaDao.findNextBudgetLineSeqNum(caseId))
         .as("next sequence number for budget line should be 2")
         .isEqualTo(budgetLine.budgetLineSequenceNumber() + 1);
+  }
+
+  @Test
+  void findHourlyRateFromPriceList() {
+    int caseCategoryId = FAKER.number().numberBetween(1, 20000);
+    int caseCategoryLevel = FAKER.number().numberBetween(1, 20000);
+    String currency = FAKER.currency().code();
+    double hourlyRate = FAKER.number().randomDigitNotZero();
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    int roleTypeId = FAKER.number().numberBetween(1, 1000);
+    long caseId = patriciaCase.caseId();
+    int actorId = FAKER.number().numberBetween(1, 1000);
+    int priceListId = FAKER.number().numberBetween(1, 1000);
+    String workCodeId = FAKER.numerify("wc######");
+    String loginId = FAKER.numerify("li######");
+
+    saveCase(patriciaCase);
+    final LocalDateTime localDateTime = LocalDateTime.now().minusMonths(1);
+    createPriceList(actorId, loginId, workCodeId, patriciaCase, currency, hourlyRate,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(actorId, "^", workCodeId, patriciaCase, currency, 2 * hourlyRate,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    saveCasting(actorId, caseId, roleTypeId);
+    saveRenewalPriceList(priceListId);
+    savePatPriceList(priceListId, actorId);
+
+    assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId).get())
+        .extracting("currencyId", "hourlyRate")
+        .contains(currency, BigDecimal.valueOf(hourlyRate).setScale(2));
+  }
+
+  @Test
+  void findHourlyRateFromPriceList_genericLoginId() {
+    int caseCategoryId = FAKER.number().numberBetween(1, 20000);
+    int caseCategoryLevel = FAKER.number().numberBetween(1, 20000);
+    String currency = FAKER.currency().code();
+    double hourlyRate = FAKER.number().randomDigitNotZero();
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    int roleTypeId = FAKER.number().numberBetween(1, 1000);
+    long caseId = patriciaCase.caseId();
+    int actorId = FAKER.number().numberBetween(1, 1000);
+    int priceListId = FAKER.number().numberBetween(1, 1000);
+    String workCodeId = FAKER.numerify("wc######");
+    String loginId = FAKER.numerify("li######");
+
+    saveCase(patriciaCase);
+    createPriceList(actorId, "^", workCodeId, patriciaCase, currency, hourlyRate,
+        priceListId, caseCategoryId, caseCategoryLevel, LocalDateTime.now().minusMonths(1));
+    saveCasting(actorId, caseId, roleTypeId);
+    saveRenewalPriceList(priceListId);
+    savePatPriceList(priceListId, actorId);
+
+    assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId).get())
+        .extracting("currencyId", "hourlyRate")
+        .contains(currency, BigDecimal.valueOf(hourlyRate).setScale(2));
+  }
+
+  @Test
+  void findHourlyRateFromPriceList_wrongPriceList() {
+    int caseCategoryId = FAKER.number().numberBetween(1, 20000);
+    int caseCategoryLevel = FAKER.number().numberBetween(1, 20000);
+    String currency = FAKER.currency().code();
+    double hourlyRate = FAKER.number().randomDigitNotZero();
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    int roleTypeId = FAKER.number().numberBetween(1, 1000);
+    long caseId = patriciaCase.caseId();
+    int actorId = FAKER.number().numberBetween(1, 1000);
+    int priceListId = FAKER.number().numberBetween(1, 1000);
+    String workCodeId = FAKER.numerify("wc######");
+    String loginId = FAKER.numerify("li######");
+
+    saveCase(patriciaCase);
+    createPriceList(actorId, loginId, workCodeId, patriciaCase, currency, hourlyRate,
+        0, caseCategoryId, caseCategoryLevel, LocalDateTime.now().minusMonths(1));
+    saveCasting(actorId, caseId, roleTypeId);
+    saveRenewalPriceList(priceListId);
+    savePatPriceList(priceListId, actorId);
+
+    assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId)).isEmpty();
   }
 
   private void saveCase(Case patCase) {
@@ -523,6 +616,18 @@ class PatriciaDaoTest {
         .update("INSERT INTO pat_case (case_id, case_catch_word, state_id, application_type_id, case_type_id) " +
             "VALUES (?, ?, ?, ?, ?)")
         .params(patCase.caseId(), patCase.caseCatchWord(), patCase.stateId(), patCase.appId(), patCase.caseTypeId())
+        .run();
+  }
+
+  private void saveRenewalPriceList(int priceListId) {
+    fluentJdbc.query().update("INSERT INTO RENEWAL_PRICE_LIST (PRICE_LIST_ID, DEFAULT_PRICE_LIST) VALUES (?, ?)")
+        .params(priceListId, 1)
+        .run();
+  }
+
+  private void savePatPriceList(int priceListId, int actorId) {
+    fluentJdbc.query().update("INSERT INTO pat_names (PRICE_LIST_ID, NAME_ID) VALUES (?, ?)")
+        .params(priceListId, actorId)
         .run();
   }
 
@@ -573,10 +678,39 @@ class PatriciaDaoTest {
 
   }
 
-  private void saveCasting(int actorId, int caseId, int roleTypeId) {
+  private void saveCasting(int actorId, long caseId, int roleTypeId) {
     fluentJdbc.query().update(
         "INSERT INTO casting (actor_id, case_id, role_type_id, case_role_sequence) VALUES (?, ?, ?, ?)")
         .params(actorId, caseId, roleTypeId, 1)
+        .run();
+  }
+
+  @SuppressWarnings("ParameterNumber")
+  private void createPriceList(int actorId, String loginId, String workCodeId, Case patCase, String currency,
+                               double hourlyRate, int priceListId, int caseCategoryId, int caseCategoryLevel,
+                               LocalDateTime localDateTime) {
+    int caseMasterId = FAKER.number().numberBetween(1, 20000);
+    fluentJdbc.query().update(
+        "INSERT INTO chargeing_price_list (CASE_CATEGORY_ID, STATUS_ID, WORK_CODE_ID, PRICE_CHANGE_DATE, ACTOR_ID, "
+            + "PRICE_LIST_ID, login_id, currency_id, PRICE) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .params(caseCategoryId, 1, workCodeId, localDateTime, actorId, priceListId,
+            loginId, currency, hourlyRate)
+        .run();
+    fluentJdbc.query().update(
+        "INSERT INTO case_category (case_master_id, case_type_id, state_id, case_category_id, case_category_level) "
+            + "VALUES (?, ?, ?, ?, ?)")
+        .params(caseMasterId, patCase.caseTypeId(), patCase.stateId(), caseCategoryId, caseCategoryLevel)
+        .run();
+    fluentJdbc.query().update(
+        "INSERT INTO case_type_definition (CASE_TYPE_ID, case_master_id) "
+            + "VALUES (?, ?)")
+        .params(patCase.caseTypeId(), caseMasterId)
+        .run();
+    fluentJdbc.query().update(
+        "INSERT INTO CASE_TYPE_DEFAULT_STATE (CASE_TYPE_ID, STATE_ID) "
+            + "VALUES (?, ?)")
+        .params(caseMasterId, patCase.stateId())
         .run();
   }
 

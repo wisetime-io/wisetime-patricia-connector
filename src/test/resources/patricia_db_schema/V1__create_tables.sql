@@ -10,7 +10,9 @@ CREATE TABLE PAT_CASE (
 	CASE_CATCH_WORD nvarchar(120) NULL,
 	STATE_ID nvarchar(2) NOT NULL,
 	APPLICATION_TYPE_ID int NOT NULL,
-	CASE_TYPE_ID int NOT NULL
+	SERVICE_LEVEL_ID int NULL,
+	CASE_TYPE_ID int NOT NULL,
+	STATUS_ID int NULL
 );
 
 CREATE TABLE PERSON (
@@ -28,6 +30,7 @@ CREATE TABLE CASTING (
 
 CREATE TABLE PAT_NAMES (
 	NAME_ID int NOT NULL,
+	price_list_id int null,
 	CURRENCY_ID nvarchar(3) NULL
 );
 
@@ -114,7 +117,8 @@ create table WORK_CODE
 		constraint PK_WORK_CODE
 			primary key,
 	WORK_CODE_DEFAULT_AMOUNT numeric(10,2),
-	REPLACE_AMOUNT int
+	REPLACE_AMOUNT int,
+	IS_ACTIVE int NULL
 );
 
 CREATE TABLE CURRENCY  (
@@ -124,4 +128,150 @@ CREATE TABLE CURRENCY  (
    CURRENCY_SUFIX   nvarchar(30) NULL,
    default_currency int NULL,
    currency_active  int NULL
-)
+);
+
+-- Added on June 15th 2020
+create table CHARGEING_PRICE_LIST
+(
+	CASE_CATEGORY_ID int not null,
+	STATUS_ID int not null,
+	PRICE_LIST_DESIGNATED int,
+	WORK_CODE_ID nvarchar(10) not null,
+	PRICE_CHANGE_DATE datetime not null,
+	ACTOR_ID int not null,
+	PRICE_UNIT nvarchar(10),
+	PRICE decimal(15,2),
+	PRICE_FOR_AMOUNT numeric(10,2),
+	PRICE_CHARGEABLE numeric(1),
+	PRICE_TYPE nvarchar(1),
+	PRICE_LIST_ID int not null,
+	LOCAL_CURRENCY int,
+	PRICE_LARGE_ENTITY_FLAG int,
+	PRICE_LARGE_ENTITY numeric(10,2),
+	CURRENCY_ID nvarchar(3),
+	DEFAULT_PRICE_LIST int,
+	DESIGNATED_STATE_ID nvarchar(2),
+	MAINTAINED_BY_PATRIX int,
+	VALIDATE_FROM_DIARY int,
+	login_id nvarchar(20) not null,
+	PRICE_MICRO_ENTITY_FLAG int,
+	PRICE_MICRO_ENTITY numeric(10,2),
+	INVENTOR_AMOUNT numeric(15,2),
+	PERCENT_LOWER int,
+	PERCENT_UPPER int
+);
+
+create table CASE_TYPE_DEFINITION
+(
+	CASE_TYPE_ID int not null,
+	CASE_TYPE_CODE nvarchar(3),
+	CASE_TYPE_LABEL nvarchar(30),
+	CASE_TYP_VAT_ACCOUNT int,
+	CASE_TYPE_NO_VAT_ACCOUNT int,
+	CASE_TYPE_COST_ACCOUNT int,
+	CASE_TYPE_DISB_ACCOUNT int,
+	KSTNR int,
+	CASE_TYPE_TO_MAIL_CHECK numeric(2),
+	CASE_TYPE_CLASS_GROUP nvarchar(1),
+	NEXT_NUMBER_OF_THE_TYPE int,
+	CASE_MASTER_ID int,
+	IS_ACTIVE int,
+	NEXT_NUMBER_FOR_INVOICE_ID int,
+	NEXT_NUMBER_FOR_OFFER_ID int,
+	NEXT_NUMBER_FOR_ACCOUNT_BILLS int,
+	NEXT_NUMBER_FOR_INVOICE_CREDIT int,
+	NEXT_NUMBER_FOR_PURCHASE int
+);
+
+create table CASE_TYPE_DEFAULT_STATE
+(
+	CASE_TYPE_ID int,
+	STATE_ID nvarchar(2),
+	DEF_STATE_ID nvarchar(2),
+	MAINTAINED_BY_PATRIX int,
+	constraint PK_CASE_TYPE_DEFAULT_STATE
+		primary key (CASE_TYPE_ID, STATE_ID)
+);
+
+create table DIARY_LINE
+(
+	FIELD_NUMBER int not null,
+	CASE_ID int not null,
+	RESYCLE_NO int,
+	CASE_CATEGORY_ID int,
+	PENDING_VALIDATION int,
+	LOCKED_BY nvarchar(20),
+	constraint PK_DIARY_LINE
+		primary key (FIELD_NUMBER, CASE_ID)
+);
+
+create table DESIGNATED_STATES
+(
+	STATE_ID nvarchar(2) not null,
+	CASE_ID int not null,
+	ORG_STATE_ID nvarchar(2) not null,
+	COPIED_CASE_EXISTS int,
+	PARTIAL_OR_TOTAL_REFUSED int,
+	APPLICATION_TYPE_ID int,
+	AGENT_ID int,
+	NO_CLASSES int,
+	OFFICIAL_APPL_FEE numeric(10,3),
+	OFFICIAL_REG_FEE numeric(10,3),
+	AGENT_APPL_FEE numeric(10,3),
+	AGENT_REG_FEE numeric(10,3),
+	FEE_CURRENCY nvarchar(3),
+	AMENDMENT_DATE datetime,
+	REMARK nvarchar(max),
+	NOT_RENEWED int,
+	EXT_APPL_DATE datetime,
+	EXT_REG_DATE datetime,
+	EXTENDED int,
+	VALIDATED_FLAG int,
+	EXT_REG_NO nvarchar(60),
+	classes nvarchar(2000),
+	DURATION datetime,
+	DETAIL_DATE datetime,
+	DESIGNATED_SEQ int default 1 not null,
+	GRANT_OF_PROTECTION datetime,
+	PUBLICATION_DATE datetime,
+	PUBLICATION_NUM nvarchar(60),
+	USE_YES_NO int,
+	FIRST_USE datetime,
+	KEEP int,
+	CLIENT_REFERENCE nvarchar(255),
+	constraint PK_DESIGNATED_STATES
+		primary key (STATE_ID, CASE_ID, ORG_STATE_ID, DESIGNATED_SEQ)
+);
+
+create table CASE_CATEGORY
+(
+	CASE_CATEGORY_ID int,
+	CASE_TYPE_ID int,
+	CASE_MASTER_ID int,
+	STATE_ID nvarchar(2),
+	APPLICATION_TYPE_ID int,
+	SERVICE_LEVEL_ID int,
+	CASE_CATEGORY_LEVEL int,
+	CASE_SCRIPT_EXIST numeric(1),
+	COPY_CASE_SCRIPT_EXIST numeric(1),
+	APPLICATION_TYPE_SCRIPT_EXIST numeric(1),
+	CASE_ROLE_SCRIPT_EXIST numeric(1),
+	DIARY_MATRIX_EXIST numeric(1),
+	RENEWAL_FEE_EXIST int,
+	RENEWAL_SERVICE_CHARGE_EXIST int,
+	CHARGEING_PRICELIST_EXIST int,
+	RULE_EXIST int,
+	CHARGEING_MATRIX_EXIST int,
+	MAINTAINED_BY_PATRIX int,
+	CASE_CATEGORY_CODE nvarchar(19),
+	DATA_COMPARISON_MAPPING_EXIST int,
+	COMPANY_ID int,
+	SITE_ID int
+);
+
+create table RENEWAL_PRICE_LIST
+(
+	PRICE_LIST_ID int not null,
+	PRICE_LIST_LABEL nvarchar(30),
+	DEFAULT_PRICE_LIST int
+);
