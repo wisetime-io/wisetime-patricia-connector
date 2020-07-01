@@ -212,16 +212,20 @@ public class PatriciaDao {
         .namedParam("case_id", caseId)
         .namedParam("role_type_id", roleTypeId)
         .firstResult(rs -> rs.getInt("ACTOR_ID"));
-    if (!actorId.isPresent()) {
-      return Optional.empty();
+    Optional<Integer> patPriceListId = Optional.empty();
+    if (actorId.isPresent()) {
+      patPriceListId = query().select("SELECT PRICE_LIST_ID FROM PAT_NAMES "
+          + "WHERE NAME_ID = :actor_id")
+          .namedParam("actor_id", actorId.get())
+          .firstResult(rs -> rs.getInt("PRICE_LIST_ID"));
+    } else {
+      // default to 0 actor id, if none is found.
+      actorId = Optional.of(0);
     }
     Optional<Integer> defaultPriceListId = query().select("SELECT PRICE_LIST_ID FROM RENEWAL_PRICE_LIST "
         + "WHERE DEFAULT_PRICE_LIST = 1")
         .firstResult(rs -> rs.getInt("PRICE_LIST_ID"));
-    Optional<Integer> patPriceListId = query().select("SELECT PRICE_LIST_ID FROM PAT_NAMES "
-        + "WHERE NAME_ID = :actor_id")
-        .namedParam("actor_id", actorId.get())
-        .firstResult(rs -> rs.getInt("PRICE_LIST_ID"));
+
     if (!defaultPriceListId.isPresent() && !patPriceListId.isPresent()) {
       return Optional.empty();
     }
@@ -269,8 +273,9 @@ public class PatriciaDao {
       pricesAfterLoginFilter = partitionedPrices.get(true);
     }
 
+    Integer finalActorId = actorId.get();
     partitionedPrices = pricesAfterLoginFilter.stream()
-        .collect(Collectors.partitioningBy(price -> actorId.get().equals(price.actorId())));
+        .collect(Collectors.partitioningBy(price -> finalActorId.equals(price.actorId())));
 
     List<PriceListEntry> pricesAfterActorFilter;
     if (partitionedPrices.get(true).isEmpty()) {

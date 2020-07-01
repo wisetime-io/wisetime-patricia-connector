@@ -111,6 +111,7 @@ class PatriciaDaoTest {
     query.update("DELETE FROM case_category").run();
     query.update("DELETE FROM case_type_definition").run();
     query.update("DELETE FROM CASE_TYPE_DEFAULT_STATE").run();
+    query.update("DELETE FROM RENEWAL_PRICE_LIST").run();
     removeAllDiscounts();
   }
 
@@ -554,6 +555,98 @@ class PatriciaDaoTest {
     assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId).get())
         .extracting("currencyId", "hourlyRate")
         .contains(currency, BigDecimal.valueOf(hourlyRate).setScale(2));
+  }
+
+  @Test
+  void findHourlyRateFromPriceList_noMatchingActorId() {
+    int caseCategoryId = FAKER.number().numberBetween(1, 20000);
+    int caseCategoryLevel = FAKER.number().numberBetween(1, 20000);
+    String currency = FAKER.currency().code();
+    double hourlyRate = FAKER.number().randomDigitNotZero();
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    int roleTypeId = FAKER.number().numberBetween(1, 1000);
+    long caseId = patriciaCase.caseId();
+    int actorId = FAKER.number().numberBetween(1, 1000);
+    int priceListId = FAKER.number().numberBetween(1, 1000);
+    String workCodeId = FAKER.numerify("wc######");
+    String loginId = FAKER.numerify("li######");
+
+    saveCase(patriciaCase);
+    saveCasting(2 * actorId, caseId, roleTypeId);
+    final LocalDateTime localDateTime = LocalDateTime.now().minusMonths(1);
+    createPriceList(actorId, loginId, workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(actorId, "^", workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(0, loginId, workCodeId, patriciaCase, currency, hourlyRate,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(0, "^", workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    saveRenewalPriceList(priceListId);
+
+    assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId).get())
+        .extracting("currencyId", "hourlyRate")
+        .contains(currency, BigDecimal.valueOf(hourlyRate).setScale(2));
+  }
+
+  @Test
+  void findHourlyRateFromPriceList_noActorId() {
+    int caseCategoryId = FAKER.number().numberBetween(1, 20000);
+    int caseCategoryLevel = FAKER.number().numberBetween(1, 20000);
+    String currency = FAKER.currency().code();
+    double hourlyRate = FAKER.number().randomDigitNotZero();
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    int roleTypeId = FAKER.number().numberBetween(1, 1000);
+    long caseId = patriciaCase.caseId();
+    int actorId = FAKER.number().numberBetween(1, 1000);
+    int priceListId = FAKER.number().numberBetween(1, 1000);
+    String workCodeId = FAKER.numerify("wc######");
+    String loginId = FAKER.numerify("li######");
+
+    saveCase(patriciaCase);
+    final LocalDateTime localDateTime = LocalDateTime.now().minusMonths(1);
+    createPriceList(actorId, loginId, workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(actorId, "^", workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(0, loginId, workCodeId, patriciaCase, currency, hourlyRate,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(0, "^", workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    saveRenewalPriceList(priceListId);
+
+    assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId).get())
+        .extracting("currencyId", "hourlyRate")
+        .contains(currency, BigDecimal.valueOf(hourlyRate).setScale(2));
+  }
+
+  @Test
+  void findHourlyRateFromPriceList_noPriceListId() {
+    int caseCategoryId = FAKER.number().numberBetween(1, 20000);
+    int caseCategoryLevel = FAKER.number().numberBetween(1, 20000);
+    String currency = FAKER.currency().code();
+    double hourlyRate = FAKER.number().randomDigitNotZero();
+    Case patriciaCase = RANDOM_DATA_GENERATOR.randomCase();
+    int roleTypeId = FAKER.number().numberBetween(1, 1000);
+    long caseId = patriciaCase.caseId();
+    int actorId = FAKER.number().numberBetween(1, 1000);
+    int priceListId = FAKER.number().numberBetween(1, 1000);
+    String workCodeId = FAKER.numerify("wc######");
+    String loginId = FAKER.numerify("li######");
+
+    saveCase(patriciaCase);
+    final LocalDateTime localDateTime = LocalDateTime.now().minusMonths(1);
+    createPriceList(actorId, loginId, workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(actorId, "^", workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(0, loginId, workCodeId, patriciaCase, currency, hourlyRate,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+    createPriceList(0, "^", workCodeId, patriciaCase, currency, 0,
+        priceListId, caseCategoryId, caseCategoryLevel, localDateTime);
+
+    assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId))
+        .isEmpty();
   }
 
   @Test
