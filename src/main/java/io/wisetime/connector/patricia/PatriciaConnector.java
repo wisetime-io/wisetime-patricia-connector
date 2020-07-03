@@ -194,11 +194,6 @@ public class PatriciaConnector implements WiseTimeConnector {
       throw new ConnectorException("Can't find Patricia case for tag " + tag.getName());
     };
 
-    final Optional<BigDecimal> hourlyRate = patriciaDao.findUserHourlyRate(workCode.get(), user.get());
-    if (!hourlyRate.isPresent()) {
-      return PostResult.PERMANENT_FAILURE().withMessage("No hourly rate is found for " + user.get());
-    }
-
     final Optional<LocalDateTime> activityStartTime = startTime(userPostedTime);
     if (!activityStartTime.isPresent()) {
       return PostResult.PERMANENT_FAILURE().withMessage("Cannot post time group with no time rows");
@@ -234,7 +229,6 @@ public class PatriciaConnector implements WiseTimeConnector {
             .userId(user.get())
             .timeRegComment(timeRegComment)
             .chargeComment(chargeComment)
-            .hourlyRate(hourlyRate.get())
             .actualHours(actualWorkedHoursPerCase)
             .chargeableHours(chargeableHoursPerCase)
             .recordalDate(activityStartTime.get())
@@ -393,16 +387,42 @@ public class PatriciaConnector implements WiseTimeConnector {
   private void executeCreateTimeAndChargeRecord(PatriciaDao.CreateTimeAndChargeParams params) {
     final String dbDate = patriciaDao.getDbDate();
 
-    final String currency = getCurrency(params);
+    // Go through hierarchy of hourly rates step by step
+    Optional<BigDecimal> hourlyRate = patriciaDao.findWorkCodeDefaultHourlyRate(params.workCode());
+    Optional<String> currency = Optional.empty();
+    if (!hourlyRate.isPresent()) {
+      Optional<PatriciaDao.PriceListEntry> priceListEntry = patriciaDao
+          .findHourlyRateFromPriceList(params.patriciaCase().caseId(), params.workCode(), params.userId(), roleTypeId);
+      if (priceListEntry.isPresent()) {
+        hourlyRate = Optional.of(priceListEntry.get().hourlyRate());
+        currency = Optional.of(priceListEntry.get().currencyId());
+      }
+    }
+
+    if (!currency.isPresent()) {
+      currency = Optional.of(getCurrency(params));
+    }
+
+    if (!hourlyRate.isPresent()) {
+      hourlyRate = patriciaDao.findPatPersonHourlyRate(params.workCode(), params.userId());
+    }
+
+    if (!hourlyRate.isPresent()) {
+      hourlyRate = patriciaDao.findPersonDefaultHourlyRate(params.userId());
+    }
+
+    if (!hourlyRate.isPresent()) {
+      throw new ConnectorException("No hourly rate is found for " + params.userId());
+    }
 
     final List<Discount> discounts = patriciaDao.findDiscounts(
         params.workCode(), roleTypeId, params.patriciaCase().caseId()
     );
     final List<Discount> applicableDiscounts = ChargeCalculator.getMostApplicableDiscounts(discounts, params.patriciaCase());
 
-    BigDecimal chargeWithoutDiscount = params.chargeableHours().multiply(params.hourlyRate());
+    BigDecimal chargeWithoutDiscount = params.chargeableHours().multiply(hourlyRate.get());
     BigDecimal chargeWithDiscount = ChargeCalculator.calculateTotalCharge(
-        applicableDiscounts, params.chargeableHours(), params.hourlyRate()
+        applicableDiscounts, params.chargeableHours(), hourlyRate.get()
     );
 
     final int budgetLineSequenceNumber = patriciaDao.findNextBudgetLineSeqNum(params.patriciaCase().caseId());
@@ -417,8 +437,8 @@ public class PatriciaConnector implements WiseTimeConnector {
         .workCodeId(params.workCode())
         .userId(params.userId())
         .submissionDate(dbDate)
-        .currency(currency)
-        .hourlyRate(params.hourlyRate())
+        .currency(currency.get())
+        .hourlyRate(hourlyRate.get())
         .actualWorkTotalHours(params.actualHours())
         .chargeableWorkTotalHours(params.chargeableHours())
         .chargeableAmount(chargeWithDiscount)

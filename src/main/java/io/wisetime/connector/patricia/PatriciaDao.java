@@ -10,6 +10,7 @@ import com.google.inject.Inject;
 
 import com.zaxxer.hikari.HikariDataSource;
 
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -120,6 +121,11 @@ public class PatriciaDao {
             "discount_amount", "currency_id", "exchange_rate", "chargeing_type_id"
         )
     );
+    requiredTablesAndColumnsMap.put(
+        "chargeing_price_list",
+        ImmutableSet.of("work_code_id", "actor_id", "price_list_id", "price_change_date", "case_category_id",
+            "price", "login_id")
+    );
 
     final Map<String, List<String>> actualTablesAndColumnsMap = query().databaseInspection()
         .selectFromMetaData(meta -> meta.getColumns(null, null, null, null))
@@ -186,33 +192,128 @@ public class PatriciaDao {
         .firstResult(Mappers.singleString());
   }
 
-  Optional<BigDecimal> findUserHourlyRate(final String workCodeId, final String loginId) {
+  // First level of hourly rate
+  Optional<BigDecimal> findWorkCodeDefaultHourlyRate(final String workCodeId) {
     return query().select(
-        " SELECT CASE " +
-            "  WHEN EXISTS (" +
-            "    SELECT wc.work_code_default_amount" +
+            "SELECT wc.work_code_default_amount" +
             "    FROM work_code wc" +
-            "      WHERE wc.work_code_id = :wc_id and wc.replace_amount = 1)" +
-            "  THEN (" +
-            "    SELECT wc.work_code_default_amount" +
-            "    FROM work_code wc" +
-            "      WHERE wc.work_code_id = :wc_id and wc.replace_amount = 1)" +
-             "  WHEN EXISTS (" +
-             "    SELECT pphr.hourly_rate" +
-             "    FROM pat_person_hourly_rate pphr" +
-             "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id)" +
-             "  THEN (" +
-             "    SELECT pphr.hourly_rate" +
-             "    FROM pat_person_hourly_rate pphr" +
-             "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id)" +
-             "  ELSE (" +
-             "    SELECT person.hourly_rate" +
-             "    FROM person" +
-             "    WHERE person.login_id = :login_id)" +
-             "  END"
+            "      WHERE wc.work_code_id = :wc_id and wc.replace_amount = 1"
+    )
+        .namedParam("wc_id", workCodeId)
+        .filter(Objects::nonNull)
+        .firstResult(rs -> rs.getBigDecimal(1));
+  }
+
+  // second level of hourly rate
+  Optional<PriceListEntry> findHourlyRateFromPriceList(final long caseId, final String workCodeId,
+                                                       final String loginId, final int roleTypeId) {
+    Optional<Integer> actorId = query().select("SELECT DISTINCT ACTOR_ID FROM CASTING "
+        + "WHERE CASE_ID = :case_id AND ROLE_TYPE_ID = :role_type_id")
+        .namedParam("case_id", caseId)
+        .namedParam("role_type_id", roleTypeId)
+        .firstResult(Mappers.singleInteger());
+    Optional<Integer> patPriceListId = Optional.empty();
+    if (actorId.isPresent()) {
+      patPriceListId = query().select("SELECT PRICE_LIST_ID FROM PAT_NAMES "
+          + "WHERE NAME_ID = :actor_id")
+          .namedParam("actor_id", actorId.get())
+          .firstResult(Mappers.singleInteger());
+    } else {
+      // default to 0 actor id, if none is found.
+      actorId = Optional.of(0);
+    }
+    Optional<Integer> defaultPriceListId = query().select("SELECT PRICE_LIST_ID FROM RENEWAL_PRICE_LIST "
+        + "WHERE DEFAULT_PRICE_LIST = 1")
+        .firstResult(Mappers.singleInteger());
+
+    if (!defaultPriceListId.isPresent() && !patPriceListId.isPresent()) {
+      return Optional.empty();
+    }
+    // Get is safe at this point. We know that not both optionals can be empty and the get on defaultPriceListId
+    // is only called when patPriceListId is not available
+    int priceListId = patPriceListId.orElseGet(defaultPriceListId::get);
+    List<PriceListEntry> prices = query().select(
+        "SELECT " +
+            "       :case_id as case_id, " +
+            "       rank_table.work_code_id as work_code_id, " +
+            "       rank_table.actor_id as actor_id, " +
+            "       rank_table.price_list_id as price_list_id, " +
+            "       rank_table.currency_id as currency_id, " +
+            "       cpl.PRICE as price, " +
+            "       cpl.login_id as login_id " +
+            "FROM " +
+            "    (SELECT *, RANK() over (ORDER BY case_category_level ASC) rank_level " +
+            "    FROM " +
+            "        fv_case_price_list fcpl " +
+            "    WHERE " +
+            "        fcpl.case_id = :case_id " +
+            "        AND fcpl.work_code_id = :wc_id) AS rank_table " +
+            "JOIN CHARGEING_PRICE_LIST cpl " +
+            "    ON rank_table.case_category_id = cpl.CASE_CATEGORY_ID " +
+            "           AND rank_table.work_code_id = cpl.WORK_CODE_ID " +
+            "           AND rank_table.actor_id = cpl.ACTOR_ID " +
+            "           AND rank_table.price_list_id = cpl.PRICE_LIST_ID " +
+            "           AND rank_table.price_change_date = cpl.PRICE_CHANGE_DATE " +
+            "WHERE " +
+            "    rank_table.rank_level = 1"
+    )
+        .namedParam("wc_id", workCodeId)
+        .namedParam("case_id", caseId)
+        .listResult(this::mapPriceListEntry);
+
+    Map<Boolean, List<PriceListEntry>> partitionedPrices = prices.stream()
+        .collect(Collectors.partitioningBy(price -> loginId.equalsIgnoreCase(price.loginId())));
+
+    List<PriceListEntry> pricesAfterLoginFilter;
+    if (partitionedPrices.get(true).isEmpty()) {
+      pricesAfterLoginFilter = partitionedPrices.get(false).stream()
+          .filter(price -> "^".equalsIgnoreCase(price.loginId()))
+          .collect(toList());
+    } else {
+      pricesAfterLoginFilter = partitionedPrices.get(true);
+    }
+
+    final Integer finalActorId = actorId.get();
+    partitionedPrices = pricesAfterLoginFilter.stream()
+        .collect(Collectors.partitioningBy(price -> finalActorId.equals(price.actorId())));
+
+    List<PriceListEntry> pricesAfterActorFilter;
+    if (partitionedPrices.get(true).isEmpty()) {
+      pricesAfterActorFilter = partitionedPrices.get(false).stream()
+          .filter(price -> price.actorId().equals(0))
+          .collect(toList());
+    } else {
+      pricesAfterActorFilter = partitionedPrices.get(true);
+    }
+
+    List<PriceListEntry> finalPriceList = pricesAfterActorFilter.stream()
+        .filter(price -> price.priceListId().equals(priceListId))
+        .collect(toList());
+
+    return finalPriceList.isEmpty() ? Optional.empty() : Optional.of(finalPriceList.get(finalPriceList.size() - 1));
+  }
+
+  // third level of hourly rate
+  Optional<BigDecimal> findPatPersonHourlyRate(final String workCodeId, final String loginId) {
+    return query().select(
+            "SELECT pphr.hourly_rate" +
+            "    FROM pat_person_hourly_rate pphr" +
+            "      WHERE pphr.login_id = :login_id AND pphr.work_code_id = :wc_id"
     )
         .namedParam("login_id", loginId)
         .namedParam("wc_id", workCodeId)
+        .filter(Objects::nonNull)
+        .firstResult(rs -> rs.getBigDecimal(1));
+  }
+
+  // last level of hourly rate
+  Optional<BigDecimal> findPersonDefaultHourlyRate(final String loginId) {
+    return query().select(
+            "SELECT person.hourly_rate" +
+            "    FROM person" +
+            "    WHERE person.login_id = :login_id"
+    )
+        .namedParam("login_id", loginId)
         .filter(Objects::nonNull)
         .firstResult(rs -> rs.getBigDecimal(1));
   }
@@ -419,6 +520,26 @@ public class PatriciaDao {
         .build();
   }
 
+  private PriceListEntry mapPriceListEntry(ResultSet set) throws SQLException {
+    final Long caseId = set.getLong("case_id");
+    final Integer actorId = set.getInt("actor_id");
+    final String currencyId = set.getString("currency_id");
+    final BigDecimal hourlyRate = set.getBigDecimal("price");
+    final String loginId = set.getString("login_id");
+    final Integer priceListId = set.getInt("price_list_id");
+    final String workCodeId = set.getString("work_code_id");
+
+    return ImmutablePriceListEntry.builder()
+        .caseId(caseId)
+        .actorId(actorId)
+        .currencyId(currencyId)
+        .hourlyRate(hourlyRate)
+        .loginId(loginId)
+        .priceListId(priceListId)
+        .workCodeId(workCodeId)
+        .build();
+  }
+
   private DiscountPriority determineDiscountPriority(Integer caseTypeId,
                                                      String stateId,
                                                      Integer appTypeId,
@@ -591,13 +712,28 @@ public class PatriciaDao {
 
     String chargeComment();
 
-    BigDecimal hourlyRate();
-
     BigDecimal actualHours();
 
     BigDecimal chargeableHours();
 
     LocalDateTime recordalDate();
+  }
+
+  @Value.Immutable
+  public interface PriceListEntry {
+    Long caseId();
+
+    String workCodeId();
+
+    Integer actorId();
+
+    Integer priceListId();
+
+    String currencyId();
+
+    BigDecimal hourlyRate();
+
+    String loginId();
   }
 
   /**
