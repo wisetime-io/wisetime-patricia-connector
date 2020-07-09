@@ -10,6 +10,8 @@ import com.google.common.base.Preconditions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.wisetime.connector.patricia.util.ConnectorException;
+
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -33,7 +35,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -47,6 +48,7 @@ import io.wisetime.connector.datastore.ConnectorStore;
 import io.wisetime.connector.patricia.util.ChargeCalculator;
 import io.wisetime.connector.template.TemplateFormatter;
 import io.wisetime.connector.template.TemplateFormatterConfig;
+import io.wisetime.generated.connect.DeleteTagRequest;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -156,16 +158,7 @@ public class PatriciaConnector implements WiseTimeConnector {
   public PostResult postTime(final Request request, final TimeGroup userPostedTime) {
     log.info("Posted time received: {}", userPostedTime.getGroupId());
 
-    List<Tag> relevantTags = userPostedTime.getTags().stream()
-        .filter(tag -> {
-          if (!createdByConnector(tag)) {
-            log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
-                tag.getName());
-            return false;
-          }
-          return true;
-        })
-        .collect(Collectors.toList());
+    List<Tag> relevantTags = getRelevantTags(userPostedTime);
     userPostedTime.setTags(relevantTags);
 
     if (userPostedTime.getTags().isEmpty()) {
@@ -185,14 +178,6 @@ public class PatriciaConnector implements WiseTimeConnector {
     if (!user.isPresent()) {
       return PostResult.PERMANENT_FAILURE().withMessage("User does not exist: " + userPostedTime.getUser().getExternalId());
     }
-
-    final Function<Tag, Optional<Case>> findCase = tag -> {
-      final Optional<Case> issue = patriciaDao.findCaseByCaseNumber(tag.getName());
-      if (issue.isPresent()) {
-        return issue;
-      }
-      throw new ConnectorException("Can't find Patricia case for tag " + tag.getName());
-    };
 
     final Optional<LocalDateTime> activityStartTime = startTime(userPostedTime);
     if (!activityStartTime.isPresent()) {
@@ -239,17 +224,43 @@ public class PatriciaConnector implements WiseTimeConnector {
         Base64.getEncoder().encodeToString(userPostedTime.toString().getBytes()));
 
     try {
-      patriciaDao.asTransaction(() ->
-          userPostedTime
-              .getTags()
-              .stream()
+      List<Tag> tagsMissingInPatricia = new ArrayList<>();
 
-              .map(findCase)
-              .filter(Optional::isPresent)
-              .map(Optional::get)
+      List<Case> casesToPostTo = userPostedTime
+          .getTags()
+          .stream()
 
-              .forEach(createTimeAndChargeRecord)
-      );
+          .map(tag -> {
+            Optional<Case> patriciaCase = patriciaDao.findCaseByCaseNumber(tag.getName());
+            if (!patriciaCase.isPresent()) {
+              tagsMissingInPatricia.add(tag);
+            }
+            return patriciaCase;
+          })
+          .filter(Optional::isPresent)
+          .map(Optional::get)
+          .collect(Collectors.toList());
+
+      if (!tagsMissingInPatricia.isEmpty()) {
+        log.warn("Couldn't find all tags in Patricia");
+        tagsMissingInPatricia.forEach(tag -> {
+          try {
+            // the tag will be deleted, but the user still needs to manually repost and existing time rows need
+            // to be fixed
+            apiClient.tagDelete(new DeleteTagRequest().name(tag.getName()));
+          } catch (IOException e) {
+            log.error("Error deleting tag: {}", tag.toString(), e);
+            // connect-api-server down: Throw general exception to retry
+            throw new RuntimeException(e);
+          }
+        });
+        throw new ConnectorException("Patricia case was not found for next tags: "
+            + tagsMissingInPatricia.stream()
+            .map(Tag::getName)
+            .collect(Collectors.joining(", ")));
+      }
+
+      patriciaDao.asTransaction(() -> casesToPostTo.forEach(createTimeAndChargeRecord));
     } catch (ConnectorException e) {
       log.warn("Can't post time to the Patricia database: " + e.getMessage());
       return PostResult.PERMANENT_FAILURE()
@@ -262,6 +273,19 @@ public class PatriciaConnector implements WiseTimeConnector {
           .withMessage("There was an error posting time to the Patricia database");
     }
     return PostResult.SUCCESS();
+  }
+
+  private List<Tag> getRelevantTags(TimeGroup userPostedTime) {
+    return userPostedTime.getTags().stream()
+        .filter(tag -> {
+          if (!createdByConnector(tag)) {
+            log.warn("The Patricia connector is not configured to handle this tag: {}. No time will be posted for this tag.",
+                tag.getName());
+            return false;
+          }
+          return true;
+        })
+        .collect(Collectors.toList());
   }
 
   @VisibleForTesting
