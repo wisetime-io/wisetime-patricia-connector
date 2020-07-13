@@ -9,6 +9,7 @@ import com.google.inject.Guice;
 
 import com.github.javafaker.Faker;
 
+import java.io.IOException;
 import java.util.NoSuchElementException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,6 +31,7 @@ import io.wisetime.connector.api_client.PostResult;
 import io.wisetime.connector.api_client.PostResult.PostResultStatus;
 import io.wisetime.connector.config.RuntimeConfig;
 import io.wisetime.connector.datastore.ConnectorStore;
+import io.wisetime.generated.connect.DeleteTagRequest;
 import io.wisetime.generated.connect.Tag;
 import io.wisetime.generated.connect.TimeGroup;
 import io.wisetime.generated.connect.TimeRow;
@@ -127,7 +129,7 @@ class PatriciaConnectorPerformTimePostingHandling {
   }
 
   @Test
-  void postTime_tag_not_exists_in_patricia_db() {
+  void postTime_tag_not_exists_in_patricia_db() throws IOException {
     Tag tag = FAKE_ENTITIES.randomTag(TAG_UPSERT_PATH, "tag_not_exists");
     TimeGroup timeGroup = FAKE_ENTITIES.randomTimeGroup()
         .tags(ImmutableList.of(tag));
@@ -147,6 +149,10 @@ class PatriciaConnectorPerformTimePostingHandling {
     assertThat(connector.postTime(fakeRequest(), timeGroup).getStatus())
         .as("tag not found in db")
         .isEqualTo(PostResult.PERMANENT_FAILURE().getStatus());
+
+    for (Tag t : timeGroup.getTags()) {
+      verify(apiClientMock, times(1)).tagDelete(new DeleteTagRequest().name(t.getName()));
+    }
   }
 
   @Test
