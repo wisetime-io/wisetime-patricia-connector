@@ -31,7 +31,7 @@ plugins {
     id 'maven'
     id "com.github.ben-manes.versions" version '0.21.0'
     id 'net.ltgt.apt' version '0.21'
-    id 'io.wisetime.versionChecker' version '0.9.13'
+    id 'io.wisetime.versionChecker' version '0.9.18'
 }
 
 apply from: "$rootDir/gradle/conf/checkstyle.gradle"
@@ -69,10 +69,7 @@ jib {
 }
 
 repositories {
-    maven {
-        // Google Maven Central mirror
-        url 'https://maven-central.storage-download.googleapis.com/repos/central/data'
-    }
+    jcenter()
     maven {
         // WiseTime artifacts
         url 'https://s3.eu-central-1.amazonaws.com/artifacts.wisetime.com/mvn2/releases'
@@ -106,8 +103,8 @@ if (taskRequestString.contains("dependencyUpdates")) {
 }
 
 dependencies {
-    compile 'io.wisetime:wisetime-connector:2.3.4'
-    compile ('com.google.inject:guice:4.2.2:no_aop') {
+    compile 'io.wisetime:wisetime-connector:2.3.4-1'
+    compile ('com.google.inject:guice:4.2.3:no_aop') {
         exclude group: 'com.google.guava', module: 'guava'
     }
     compile 'com.google.guava:guava:28.2-jre'
@@ -163,6 +160,23 @@ publishing {
             artifactId 'wisetime-patricia-connector'
             // version is set via plugin
             from components.java
+        }
+    }
+}
+
+configurations.all {
+
+    resolutionStrategy {
+
+        resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+            if (details.requested.group == 'com.fasterxml.jackson.core') {
+                details.useVersion "2.11.1"
+                details.because "use consistent jackson version for all transitive dependencies"
+            }
+            if (details.requested.group == 'com.fasterxml.jackson.dataformat') {
+                details.useVersion "2.11.1"
+                details.because "use consistent jackson version for all transitive dependencies"
+            }
         }
     }
 }
