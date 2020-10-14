@@ -150,6 +150,11 @@ public class PatriciaConnector implements WiseTimeConnector {
     refreshCases(tagRefreshBatchSize());
   }
 
+  @Override
+  public void performActivityTypeUpdate() {
+
+  }
+
   /**
    * Called by the WiseTime Connector library whenever a user posts time to the team.
    * Registers worked time and updates budget if needed.
