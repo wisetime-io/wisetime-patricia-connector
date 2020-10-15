@@ -52,7 +52,7 @@ jib {
         from {
             // Latest is crashing
 //            image = "arm64v8/openjdk:8-alpine"
-            image = "arm64v8/openjdk:8u201-jdk-alpine"
+            image = "arm64v8/openjdk:11.0.8-jdk-buster"
         }
         to {
             image = "wisetime/wisetime-patricia-connector-arm64v8"
@@ -60,7 +60,7 @@ jib {
     } else {
         println 'building image with (default) architecture: amd64'
         from {
-            image = "wisetime/wisetime-java8-connector"
+            image = "wisetime/wisetime-java11-connector"
         }
         to {
             image = "wisetime/wisetime-patricia-connector"

@@ -152,7 +152,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   @Override
   public void performActivityTypeUpdate() {
-
+    // Activity type update is not performed in this connector
   }
 
   /**
