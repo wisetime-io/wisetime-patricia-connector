@@ -50,8 +50,6 @@ jib {
     if (targetArch == 'arm64v8') {
         println 'building image with architecture: arm64v8'
         from {
-            // Latest is crashing
-//            image = "arm64v8/openjdk:8-alpine"
             image = "arm64v8/openjdk:11.0.8-jdk-buster"
         }
         to {
