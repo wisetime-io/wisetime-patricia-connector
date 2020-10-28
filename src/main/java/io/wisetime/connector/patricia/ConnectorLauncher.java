@@ -55,7 +55,7 @@ public class ConnectorLauncher {
     USE_SYSDEFAULT_CURRENCY_FOR_POSTING("USE_SYSDEFAULT_CURRENCY_FOR_POSTING"),
     FALLBACK_CURRENCY("FALLBACK_CURRENCY"),
     PATRICIA_CASE_URL_PREFIX("PATRICIA_CASE_URL_PREFIX"),
-    LANGUAGE("PATRICIA_CASE_URL_PREFIX"); // default `English`
+    LANGUAGE("LANGUAGE"); // default `English`
 
     private final String configKey;
 
