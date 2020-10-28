@@ -31,7 +31,7 @@ plugins {
     id 'maven'
     id "com.github.ben-manes.versions" version '0.21.0'
     id 'net.ltgt.apt' version '0.21'
-    id 'io.wisetime.versionChecker' version '0.9.28'
+    id 'io.wisetime.versionChecker' version '0.9.29'
 }
 
 apply from: "$rootDir/gradle/conf/checkstyle.gradle"
