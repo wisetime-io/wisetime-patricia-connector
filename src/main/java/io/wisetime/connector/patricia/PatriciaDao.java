@@ -4,24 +4,17 @@
 
 package io.wisetime.connector.patricia;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.inject.Inject;
-
 import com.zaxxer.hikari.HikariDataSource;
-
-import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.codejargon.fluentjdbc.api.FluentJdbc;
-import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
-import org.codejargon.fluentjdbc.api.mapper.Mappers;
-import org.codejargon.fluentjdbc.api.query.Query;
-import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.wisetime.connector.config.RuntimeConfig;
+import io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
+import io.wisetime.generated.connect.UpsertTagRequest;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -32,16 +25,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-
-import io.wisetime.connector.config.RuntimeConfig;
-import io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
-import io.wisetime.generated.connect.UpsertTagRequest;
-
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.mapping;
-import static java.util.stream.Collectors.toList;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.codejargon.fluentjdbc.api.FluentJdbc;
+import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
+import org.codejargon.fluentjdbc.api.mapper.Mappers;
+import org.codejargon.fluentjdbc.api.query.Query;
+import org.immutables.value.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Simple, unsophisticated access to the Patricia database.
@@ -480,6 +475,31 @@ public class PatriciaDao {
 
   }
 
+  /**
+   * Returns active work codes of type `T` with localized text. Language of the localization can be set using {@link
+   * PatriciaConnectorConfigKey#LANGUAGE} property. English is used by default.
+   */
+  List<WorkCode> findWorkCodes(int offset, int limit) {
+    final String language = RuntimeConfig.getString(PatriciaConnectorConfigKey.LANGUAGE).orElse("English");
+    return query()
+        .select("SELECT "
+            + "   WC.WORK_CODE_ID AS work_code_id,"
+            + "   WCT.WORK_CODE_TEXT AS work_code_text"
+            + " FROM WORK_CODE WC"
+            + "   JOIN WORK_CODE_TEXT WCT ON WC.WORK_CODE_ID = WCT.WORK_CODE_ID"
+            + "   JOIN LANGUAGE_CODE LC ON WCT.LANGUAGE_ID = LC.LANGUAGE_ID"
+            + " WHERE WC.IS_ACTIVE = 1"
+            + "   AND WC.WORK_CODE_TYPE = 'T'"
+            + "   AND LC.LANGUAGE_LABEL = :language"
+            + " ORDER BY work_code_id"
+            + " OFFSET :offset ROWS"
+            + " FETCH NEXT :limit ROWS ONLY")
+        .namedParam("offset", offset)
+        .namedParam("limit", limit)
+        .namedParam("language", language)
+        .listResult(this::mapToWorkCode);
+  }
+
   private ImmutableCase mapToCase(ResultSet rs) throws SQLException {
     return ImmutableCase.builder()
         .caseId(rs.getLong(1))
@@ -537,6 +557,13 @@ public class PatriciaDao {
         .loginId(loginId)
         .priceListId(priceListId)
         .workCodeId(workCodeId)
+        .build();
+  }
+
+  private WorkCode mapToWorkCode(ResultSet rs) throws SQLException {
+    return ImmutableWorkCode.builder()
+        .workCodeId(rs.getString("work_code_id"))
+        .workCodeText(rs.getString("work_code_text"))
         .build();
   }
 
@@ -734,6 +761,14 @@ public class PatriciaDao {
     BigDecimal hourlyRate();
 
     String loginId();
+  }
+
+  @Value.Immutable
+  public interface WorkCode {
+
+    String workCodeId();
+
+    String workCodeText();
   }
 
   /**

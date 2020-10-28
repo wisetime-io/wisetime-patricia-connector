@@ -4,22 +4,37 @@
 
 package io.wisetime.connector.patricia;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
+import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
+import static io.wisetime.connector.patricia.PatriciaDao.Case;
+import static io.wisetime.connector.patricia.PatriciaDao.Discount;
+import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
+import static io.wisetime.connector.utils.ActivityTimeCalculator.startTime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.wisetime.connector.ConnectorModule;
+import io.wisetime.connector.WiseTimeConnector;
+import io.wisetime.connector.api_client.ApiClient;
+import io.wisetime.connector.api_client.PostResult;
+import io.wisetime.connector.config.RuntimeConfig;
+import io.wisetime.connector.datastore.ConnectorStore;
+import io.wisetime.connector.patricia.PatriciaDao.WorkCode;
+import io.wisetime.connector.patricia.util.ChargeCalculator;
 import io.wisetime.connector.patricia.util.ConnectorException;
-
-import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import io.wisetime.connector.patricia.util.HashFunction;
+import io.wisetime.connector.template.TemplateFormatter;
+import io.wisetime.connector.template.TemplateFormatterConfig;
+import io.wisetime.generated.connect.ActivityType;
+import io.wisetime.generated.connect.DeleteTagRequest;
+import io.wisetime.generated.connect.SyncActivityTypesRequest;
+import io.wisetime.generated.connect.SyncSession;
+import io.wisetime.generated.connect.Tag;
+import io.wisetime.generated.connect.TimeGroup;
+import io.wisetime.generated.connect.TimeRow;
+import io.wisetime.generated.connect.UpsertTagRequest;
+import io.wisetime.generated.connect.User;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -29,39 +44,23 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
+import java.util.stream.Stream;
 import javax.inject.Inject;
-
-import io.wisetime.connector.ConnectorModule;
-import io.wisetime.connector.WiseTimeConnector;
-import io.wisetime.connector.api_client.ApiClient;
-import io.wisetime.connector.api_client.PostResult;
-import io.wisetime.connector.config.RuntimeConfig;
-import io.wisetime.connector.datastore.ConnectorStore;
-import io.wisetime.connector.patricia.util.ChargeCalculator;
-import io.wisetime.connector.template.TemplateFormatter;
-import io.wisetime.connector.template.TemplateFormatterConfig;
-import io.wisetime.generated.connect.DeleteTagRequest;
-import io.wisetime.generated.connect.Tag;
-import io.wisetime.generated.connect.TimeGroup;
-import io.wisetime.generated.connect.TimeRow;
-import io.wisetime.generated.connect.UpsertTagRequest;
-import io.wisetime.generated.connect.User;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spark.Request;
-
-import static io.wisetime.connector.patricia.ConnectorLauncher.PatriciaConnectorConfigKey;
-import static io.wisetime.connector.patricia.PatriciaDao.BudgetLine;
-import static io.wisetime.connector.patricia.PatriciaDao.Case;
-import static io.wisetime.connector.patricia.PatriciaDao.Discount;
-import static io.wisetime.connector.patricia.PatriciaDao.TimeRegistration;
-import static io.wisetime.connector.utils.ActivityTimeCalculator.startTime;
 
 /**
  * WiseTime Connector implementation for Patricia.
@@ -76,6 +75,9 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private static final String PATRICIA_LAST_SYNC_KEY = "patricia_last_sync_id";
   private static final String PATRICIA_LAST_REFRESHED_KEY = "patricia_last_refreshed_id";
+  static final String PATRICIA_WORK_CODES_HASH_KEY = "patricia_work_codes_hash";
+  static final String PATRICIA_WORK_CODES_LAST_SYNC_KEY = "patricia_work_codes_last_sync";
+  static final int WORK_CODES_BATCH_SIZE = 500;
 
   private Supplier<Integer> tagSyncIntervalMinutes;
   private ApiClient apiClient;
@@ -85,6 +87,9 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private Set<String> zeroChargeWorkCodes;
   private int roleTypeId;
+
+  @Inject
+  private HashFunction hashFunction;
 
   @Inject
   private PatriciaDao patriciaDao;
@@ -152,7 +157,7 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   @Override
   public void performActivityTypeUpdate() {
-    // Activity type update is not performed in this connector
+    syncWorkCodes();
   }
 
   /**
@@ -359,6 +364,74 @@ public class PatriciaConnector implements WiseTimeConnector {
       apiClient.tagUpsertBatch(upsertRequests);
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private void syncWorkCodes() {
+    final List<String> hashes = new ArrayList<>();
+    iterateAllWorkCodes(workCodes -> hashes.add(hashFunction.hashWorkCodes(workCodes)));
+    final String currentHash = hashFunction.hashStrings(hashes);
+
+    final String prevSyncedHash = connectorStore.getString(PATRICIA_WORK_CODES_HASH_KEY).orElse(StringUtils.EMPTY);
+    final boolean syncedMoreThanDayAgo = connectorStore.getLong(PATRICIA_WORK_CODES_LAST_SYNC_KEY)
+        .map(lastSync -> System.currentTimeMillis() - lastSync > TimeUnit.DAYS.toMillis(1))
+        .orElse(true);
+
+    if (!currentHash.equals(prevSyncedHash) || syncedMoreThanDayAgo) {
+      final String syncSessionId = startSyncSession();
+      iterateAllWorkCodes(workCodes -> sendActivityTypesToSync(mapToActivityTypes(workCodes), syncSessionId));
+      completeSyncSession(syncSessionId);
+      connectorStore.putString(PATRICIA_WORK_CODES_HASH_KEY, currentHash);
+      connectorStore.putLong(PATRICIA_WORK_CODES_LAST_SYNC_KEY, System.currentTimeMillis());
+    }
+  }
+
+  private List<ActivityType> mapToActivityTypes(List<WorkCode> workCodes) {
+    return workCodes.stream()
+        .map(wc -> new ActivityType()
+            .code(wc.workCodeId())
+            .label(wc.workCodeText()))
+        .collect(Collectors.toList());
+  }
+
+  private void sendActivityTypesToSync(List<ActivityType> activityTypes, String sessionId) {
+    final SyncActivityTypesRequest request = new SyncActivityTypesRequest()
+        .activityTypes(activityTypes)
+        .syncSessionId(sessionId);
+    try {
+      apiClient.syncActivityTypes(request);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private String startSyncSession() {
+    try {
+      return apiClient.activityTypesStartSyncSession().getSyncSessionId();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void completeSyncSession(String syncSessionId) {
+    try {
+      apiClient.activityTypesCompleteSyncSession(new SyncSession().syncSessionId(syncSessionId));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void iterateAllWorkCodes(Consumer<List<WorkCode>> consumer) {
+    int offset = 0;
+    while (true) {
+      final List<WorkCode> workCodes = patriciaDao.findWorkCodes(offset, WORK_CODES_BATCH_SIZE);
+      if (workCodes.size() > 0) {
+        consumer.accept(workCodes);
+      }
+      if (workCodes.size() < WORK_CODES_BATCH_SIZE) {
+        return;
+      }
+      offset += WORK_CODES_BATCH_SIZE;
     }
   }
 

@@ -112,6 +112,8 @@ class PatriciaDaoTest {
     query.update("DELETE FROM case_type_definition").run();
     query.update("DELETE FROM CASE_TYPE_DEFAULT_STATE").run();
     query.update("DELETE FROM RENEWAL_PRICE_LIST").run();
+    query.update("DELETE FROM WORK_CODE_TEXT").run();
+    query.update("DELETE FROM LANGUAGE_CODE").run();
     removeAllDiscounts();
   }
 
@@ -699,6 +701,93 @@ class PatriciaDaoTest {
     assertThat(patriciaDao.findHourlyRateFromPriceList(caseId, workCodeId, loginId, roleTypeId)).isEmpty();
   }
 
+  @Test
+  void findWorkCodes() {
+    final int languageIdEng = FAKER.number().numberBetween(1, 1000);
+    final int languageIdFr = languageIdEng + 1;
+    createLanguage(languageIdEng, "English");
+    createLanguage(languageIdFr, "French");
+
+    // create active work code with `T` type with English and French translations
+    final String workCodeId1 = FAKER.numerify("wc######");
+    final String workCodeTextFr = FAKER.numerify("text-fr-######");
+    final String workCodeTextEng = FAKER.numerify("text-eng-######");
+    createWorkCode(workCodeId1, "T", true);
+    createWorkCodeText(workCodeId1, workCodeTextEng, languageIdEng);
+    createWorkCodeText(workCodeId1, workCodeTextFr, languageIdFr);
+
+    // create active work code with wrong type with English and French translations
+    final String workCodeId2 = FAKER.numerify("wc######");
+    createWorkCode(workCodeId2, "A", true);
+    createWorkCodeText(workCodeId2, FAKER.numerify("text-eng-######"), languageIdEng);
+    createWorkCodeText(workCodeId2, FAKER.numerify("text-fr-######"), languageIdFr);
+
+    // create NON-active work code with `T` type with English and French translations
+    final String workCodeId3 = FAKER.numerify("wc######");
+    createWorkCode(workCodeId3, "T", false);
+    createWorkCodeText(workCodeId3, FAKER.numerify("text-eng-######"), languageIdEng);
+    createWorkCodeText(workCodeId3, FAKER.numerify("text-fr-######"), languageIdFr);
+
+    // check that active work code with type `T` and default `English` translation is returned
+    RuntimeConfig.clearProperty(PatriciaConnectorConfigKey.LANGUAGE);
+    assertThat(patriciaDao.findWorkCodes(0, 10))
+        .as("English translation should be retrieved by default")
+        .containsExactly(ImmutableWorkCode.builder()
+            .workCodeId(workCodeId1)
+            .workCodeText(workCodeTextEng)
+            .build());
+
+    // check that active work code with type `T` and configured language is returned
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.LANGUAGE, "French");
+    assertThat(patriciaDao.findWorkCodes(0, 10))
+        .as("French translation should be retrieved as configured")
+        .containsExactly(ImmutableWorkCode.builder()
+            .workCodeId(workCodeId1)
+            .workCodeText(workCodeTextFr)
+            .build());
+  }
+
+  @Test
+  void findWorkCodes_offset_limit() {
+    final int languageIdEng = FAKER.number().numberBetween(1, 1000);
+    final int languageIdFr = languageIdEng + 1;
+    createLanguage(languageIdEng, "English");
+    createLanguage(languageIdFr, "French");
+
+    // create work code 1 (should be skipped by offset)
+    final String workCodeId1 = FAKER.numerify("wc1-######");
+    final String workCodeTextFr1 = FAKER.numerify("text-fr-######");
+    final String workCodeTextEng1 = FAKER.numerify("text-eng-######");
+    createWorkCode(workCodeId1, "T", true);
+    createWorkCodeText(workCodeId1, workCodeTextEng1, languageIdEng);
+    createWorkCodeText(workCodeId1, workCodeTextFr1, languageIdFr);
+
+    // create work code 2 (should be returned)
+    final String workCodeId2 = FAKER.numerify("wc2-######");
+    final String workCodeTextFr2 = FAKER.numerify("text-fr-######");
+    final String workCodeTextEng2 = FAKER.numerify("text-eng-######");
+    createWorkCode(workCodeId2, "T", true);
+    createWorkCodeText(workCodeId2, workCodeTextEng2, languageIdEng);
+    createWorkCodeText(workCodeId2, workCodeTextFr2, languageIdFr);
+
+    // create work code 2 (should be skipped by limit)
+    final String workCodeId3 = FAKER.numerify("wc3-######");
+    final String workCodeTextFr3 = FAKER.numerify("text-fr-######");
+    final String workCodeTextEng3 = FAKER.numerify("text-eng-######");
+    createWorkCode(workCodeId3, "T", true);
+    createWorkCodeText(workCodeId3, workCodeTextEng3, languageIdEng);
+    createWorkCodeText(workCodeId3, workCodeTextFr3, languageIdFr);
+
+    // check that proper work code with configured language is returned
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.LANGUAGE, "French");
+    assertThat(patriciaDao.findWorkCodes(1, 1))
+        .as("French translation should be retrieved as configured")
+        .containsExactly(ImmutableWorkCode.builder()
+            .workCodeId(workCodeId2)
+            .workCodeText(workCodeTextFr2)
+            .build());
+  }
+
   private void saveCase(Case patCase) {
     fluentJdbc.query()
         .update("INSERT INTO vw_case_number (case_id, case_number) VALUES (?, ?)")
@@ -804,6 +893,27 @@ class PatriciaDaoTest {
         "INSERT INTO CASE_TYPE_DEFAULT_STATE (CASE_TYPE_ID, STATE_ID) "
             + "VALUES (?, ?)")
         .params(caseMasterId, patCase.stateId())
+        .run();
+  }
+
+  private void createWorkCode(String workCodeId, String workCodeType, boolean active) {
+    fluentJdbc.query().update(
+        "INSERT INTO WORK_CODE (WORK_CODE_ID, WORK_CODE_TYPE, IS_ACTIVE) VALUES (?, ?, ?)")
+        .params(workCodeId, workCodeType, active)
+        .run();
+  }
+
+  private void createWorkCodeText(String workCodeId, String workCodeText, int languageId) {
+    fluentJdbc.query().update(
+        "INSERT INTO WORK_CODE_TEXT (WORK_CODE_ID, LANGUAGE_ID, WORK_CODE_TEXT) VALUES (?, ?, ?)")
+        .params(workCodeId, languageId, workCodeText)
+        .run();
+  }
+
+  private void createLanguage(int languageId, String language) {
+    fluentJdbc.query().update(
+        "INSERT INTO LANGUAGE_CODE (LANGUAGE_ID, LANGUAGE_LABEL) VALUES (?, ?)")
+        .params(languageId, language)
         .run();
   }
 

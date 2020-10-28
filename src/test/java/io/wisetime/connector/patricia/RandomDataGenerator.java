@@ -6,6 +6,7 @@ package io.wisetime.connector.patricia;
 
 import com.github.javafaker.Faker;
 
+import io.wisetime.connector.patricia.PatriciaDao.WorkCode;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -37,6 +38,17 @@ public class RandomDataGenerator {
 
   public List<Case> randomCase(int count) {
     return randomEntities(this::randomCase, count, count);
+  }
+
+  public WorkCode randomWorkCode() {
+    return ImmutableWorkCode.builder()
+        .workCodeId(FAKER.numerify("wc#####"))
+        .workCodeText(FAKER.numerify("text-#####"))
+        .build();
+  }
+
+  public List<WorkCode> randomWorkCodes(int count) {
+    return randomEntities(this::randomWorkCode, count, count);
   }
 
   private <T> List<T> randomEntities(final Supplier<T> supplier, final int min, final int max) {

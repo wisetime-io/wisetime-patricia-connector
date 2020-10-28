@@ -116,6 +116,7 @@ create table WORK_CODE
 	WORK_CODE_ID nvarchar(10) not null
 		constraint PK_WORK_CODE
 			primary key,
+    WORK_CODE_TYPE nvarchar(1) NULL,
 	WORK_CODE_DEFAULT_AMOUNT numeric(10,2),
 	REPLACE_AMOUNT int,
 	IS_ACTIVE int NULL
@@ -274,4 +275,18 @@ create table RENEWAL_PRICE_LIST
 	PRICE_LIST_ID int not null,
 	PRICE_LIST_LABEL nvarchar(30),
 	DEFAULT_PRICE_LIST int
+);
+
+-- Added on October 27th 2020
+create table WORK_CODE_TEXT
+(
+    WORK_CODE_ID nvarchar(10) not null,
+    WORK_CODE_TEXT nvarchar(60),
+    LANGUAGE_ID int
+);
+
+create table LANGUAGE_CODE
+(
+    LANGUAGE_ID int not null,
+    LANGUAGE_LABEL nvarchar(30)
 );
