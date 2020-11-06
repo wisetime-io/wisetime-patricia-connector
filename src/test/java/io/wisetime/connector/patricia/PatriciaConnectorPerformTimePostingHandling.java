@@ -94,7 +94,7 @@ class PatriciaConnectorPerformTimePostingHandling {
     // Ensure PatriciaConnector#init will not fail
     doReturn(true).when(patriciaDaoMock).hasExpectedSchema();
 
-    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock, 5));
+    connector.init(new ConnectorModule(apiClientMock, connectorStoreMock, 5, 15));
   }
 
   @BeforeEach
