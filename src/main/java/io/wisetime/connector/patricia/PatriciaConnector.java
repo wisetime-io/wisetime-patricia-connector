@@ -160,6 +160,11 @@ public class PatriciaConnector implements WiseTimeConnector {
     syncWorkCodes();
   }
 
+  @Override
+  public void performActivityTypeUpdateSlowLoop() {
+    // no slow loop is needed as `performActivityTypeUpdate` will handle any change
+  }
+
   /**
    * Called by the WiseTime Connector library whenever a user posts time to the team.
    * Registers worked time and updates budget if needed.
