@@ -219,7 +219,7 @@ public class PatriciaConnector implements WiseTimeConnector {
     final Optional<String> commentOverride = RuntimeConfig.getString(PatriciaConnectorConfigKey.INVOICE_COMMENT_OVERRIDE);
 
     final TimeGroup timeGroupToFormat = convertToZone(userPostedTime, getTimeZoneId());
-    final String timeRegComment =  commentOverride.orElse(timeRegistrationTemplate.format(timeGroupToFormat));
+    final String timeRegComment = commentOverride.orElse(timeRegistrationTemplate.format(timeGroupToFormat));
     final String chargeComment = commentOverride.orElse(chargeTemplate.format(timeGroupToFormat));
 
     final Consumer<Case> createTimeAndChargeRecord = patriciaCase ->
@@ -374,13 +374,15 @@ public class PatriciaConnector implements WiseTimeConnector {
 
   private void syncWorkCodes() {
     final List<String> hashes = new ArrayList<>();
-    iterateAllWorkCodes(workCodes -> hashes.add(hashFunction.hashWorkCodes(workCodes)));
+    final int workCodesCount = iterateAllWorkCodes(workCodes -> hashes.add(hashFunction.hashWorkCodes(workCodes)));
     final String currentHash = hashFunction.hashStrings(hashes);
 
     final String prevSyncedHash = connectorStore.getString(PATRICIA_WORK_CODES_HASH_KEY).orElse(StringUtils.EMPTY);
-    final boolean syncedMoreThanDayAgo = connectorStore.getLong(PATRICIA_WORK_CODES_LAST_SYNC_KEY)
-        .map(lastSync -> System.currentTimeMillis() - lastSync > TimeUnit.DAYS.toMillis(1))
-        .orElse(true);
+    final long lastSync = connectorStore.getLong(PATRICIA_WORK_CODES_LAST_SYNC_KEY).orElse(0L);
+    final boolean syncedMoreThanDayAgo = System.currentTimeMillis() - lastSync > TimeUnit.DAYS.toMillis(1);
+
+    log.info("Sync Work Codes: {} work codes found with hash: '{}'. Previously synced at {} with hash: '{}'",
+        workCodesCount, currentHash, lastSync, prevSyncedHash);
 
     if (!currentHash.equals(prevSyncedHash) || syncedMoreThanDayAgo) {
       final String syncSessionId = startSyncSession();
@@ -388,6 +390,9 @@ public class PatriciaConnector implements WiseTimeConnector {
       completeSyncSession(syncSessionId);
       connectorStore.putString(PATRICIA_WORK_CODES_HASH_KEY, currentHash);
       connectorStore.putLong(PATRICIA_WORK_CODES_LAST_SYNC_KEY, System.currentTimeMillis());
+      log.info("Work codes synced successfully finished with session '{}'", syncSessionId);
+    } else {
+      log.info("No need to sync work codes");
     }
   }
 
@@ -426,15 +431,17 @@ public class PatriciaConnector implements WiseTimeConnector {
     }
   }
 
-  private void iterateAllWorkCodes(Consumer<List<WorkCode>> consumer) {
+  private int iterateAllWorkCodes(Consumer<List<WorkCode>> consumer) {
     int offset = 0;
+    int counter = 0;
     while (true) {
       final List<WorkCode> workCodes = patriciaDao.findWorkCodes(offset, WORK_CODES_BATCH_SIZE);
       if (workCodes.size() > 0) {
         consumer.accept(workCodes);
+        counter += workCodes.size();
       }
       if (workCodes.size() < WORK_CODES_BATCH_SIZE) {
-        return;
+        return counter;
       }
       offset += WORK_CODES_BATCH_SIZE;
     }
