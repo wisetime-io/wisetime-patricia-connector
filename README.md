@@ -46,7 +46,7 @@ The following configuration options are optional.
 | WT_CHARGE_TYPE_ID                    | Defines the Patricia charging type ID that WiseTime entries will be written with to Patricia. Default is `NULL`                                                                                                               |
 | USE_SYSDEFAULT_CURRENCY_FOR_POSTING  | When `true` the connector will use the the system default currency, instead of determining it by case. Defaults to `false`.                                                                                                   |
 | FALLBACK_CURRENCY                    | The currency to use when all other methods of currency resolution fail. Defaults to `NULL`, which means that an error will be thrown when no currency can be determined.                                                      |
-| LANGUAGE                             | The localization language of the connector that can be used for defining locale-dependant labels (e.g. work code text). It's the standard English name of the language (eg. `German`, `French`, etc.) Defaults to `English`.  |
+| PATRICIA_LANGUAGE                    | The localization language of the connector that can be used for defining locale-dependant labels (e.g. work code text). It's the standard English name of the language (eg. `German`, `French`, etc.) Defaults to `English`.  |
 
 
 ## Running the WiseTime Postgres Connector

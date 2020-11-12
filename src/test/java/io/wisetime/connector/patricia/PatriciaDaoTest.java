@@ -729,7 +729,7 @@ class PatriciaDaoTest {
     createWorkCodeText(workCodeId3, FAKER.numerify("text-fr-######"), languageIdFr);
 
     // check that active work code with type `T` and default `English` translation is returned
-    RuntimeConfig.clearProperty(PatriciaConnectorConfigKey.LANGUAGE);
+    RuntimeConfig.clearProperty(PatriciaConnectorConfigKey.PATRICIA_LANGUAGE);
     assertThat(patriciaDao.findWorkCodes(0, 10))
         .as("English translation should be retrieved by default")
         .containsExactly(ImmutableWorkCode.builder()
@@ -738,7 +738,7 @@ class PatriciaDaoTest {
             .build());
 
     // check that active work code with type `T` and configured language is returned
-    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.LANGUAGE, "French");
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_LANGUAGE, "French");
     assertThat(patriciaDao.findWorkCodes(0, 10))
         .as("French translation should be retrieved as configured")
         .containsExactly(ImmutableWorkCode.builder()
@@ -779,7 +779,7 @@ class PatriciaDaoTest {
     createWorkCodeText(workCodeId3, workCodeTextFr3, languageIdFr);
 
     // check that proper work code with configured language is returned
-    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.LANGUAGE, "French");
+    RuntimeConfig.setProperty(PatriciaConnectorConfigKey.PATRICIA_LANGUAGE, "French");
     assertThat(patriciaDao.findWorkCodes(1, 1))
         .as("French translation should be retrieved as configured")
         .containsExactly(ImmutableWorkCode.builder()
