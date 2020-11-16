@@ -477,10 +477,10 @@ public class PatriciaDao {
 
   /**
    * Returns active work codes of type `T` with localized text. Language of the localization can be set using {@link
-   * PatriciaConnectorConfigKey#LANGUAGE} property. English is used by default.
+   * PatriciaConnectorConfigKey#PATRICIA_LANGUAGE} property. English is used by default.
    */
   List<WorkCode> findWorkCodes(int offset, int limit) {
-    final String language = RuntimeConfig.getString(PatriciaConnectorConfigKey.LANGUAGE).orElse("English");
+    final String language = RuntimeConfig.getString(PatriciaConnectorConfigKey.PATRICIA_LANGUAGE).orElse("English");
     return query()
         .select("SELECT "
             + "   WC.WORK_CODE_ID AS work_code_id,"
