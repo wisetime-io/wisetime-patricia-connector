@@ -1,0 +1,87 @@
+# Copyright (c) 2019 Practice Insight Pty Ltd. All rights reserved.
+#
+# Docker Compose manifest for running WiseTime Patricia Connector.
+#
+# To start the WiseTime Connector, run the following command in the same directory as
+# this docker-compose.yaml file:
+#
+#   docker-compose -p wisetime-patricia-connector up -d
+#
+# To stop the WiseTime Connector, run the following command in the same directory:
+#
+#   docker-compose down
+#
+# This docker-compose.yaml file creates a local volume for persistence. To list the
+# volume:
+#
+#   docker volume ls
+#
+version: "3"
+services:
+  wisetime-patricia-connector:
+    labels:
+      description: WiseTime Patricia Connector
+    image: wisetime/wisetime-patricia-connector:latest
+    restart: always
+
+    # uncomment the ports: definition if the connector should work in webhook mode.
+    # ports:
+    #   - "8080:8080"
+
+    environment:
+      API_KEY: YOUR_WISETIME_CONNECT_API_KEY
+
+	  # Set loglevel if other than default - INFO - required
+	  # LOGLEVEL: DEBUG
+
+      # define appropriate timezone
+      TIMEZONE: Australia/Perth
+
+      # Disable tag uploading by setting TAG_SCAN to DISABLED (tag upload must be done by, etg. using the SQL connector)
+      TAG_SCAN: ENABLED
+      TAG_UPSERT_PATH: /Patricia/
+      TAG_UPSERT_BATCH_SIZE: 500
+
+      # uncomment the following - as well as the above docker ports: definition - if the connector
+      # should work in webhook mode. If the connector should work using other than the default
+      # port, please adapt the docker ports: definition in line with the WEBHOOK_PORT variable.
+      # RECEIVE_POSTED_TIME: WEBHOOK
+      # CALLER_KEY: PICK_A_SECRET
+      # WEBHOOK_PORT: 8080
+
+      # specify if a time summary block should be added to the end of the narrative when posting time
+      ADD_SUMMARY_TO_NARRATIVE: "false"
+
+      # value to set as WT_CHARGE_TYPE_ID when posting time to BUDGET_LINE table. Default: NULL
+      # WT_CHARGE_TYPE_ID: <INSERT_CHARGE_TYPE_ID>
+
+      # work codes listed will be assigned 0:00 chargeable time in Patricia in addition to a 0 amount when posted.
+      # WORK_CODES_ZERO_CHARGE: ""
+
+      # configures the connector to always use the system default currency instead of currency set for respective invoice recipient in name
+      # USE_SYSDEFAULT_CURRENCY_FOR_POSTING: "true"
+
+      # configures the fallback currency to be used when all other currency resolution fails
+      # FALLBACK_CURRENCY: "EUR"
+
+      # Patricia DMS case URL prefix can be used to generate a URL when creating tags. If a URL is present, the tag will be clickable in WiseTime. Clicking on the tag will open the URL of related case.
+      # PATRICIA_CASE_URL_PREFIX: "http://edms.company.com:9080/casebrowser/#/case/"
+
+      # specify the <role_type_id> for the name role that defines the account address on a case (and of which discounts, etc. must be observed in creating charge lines)
+      PATRICIA_ROLE_TYPE_ID: <role_type_id>
+      
+      # Define the language to use for activity type labels that are synced to WiseTime (defaults to English)
+      # PATRICIA_LANGUAGE: "English"
+
+      PATRICIA_JDBC_URL: "jdbc:sqlserver://HOST:PORT;databaseName=DATABASE_NAME;ssl=request;useCursors=true"
+      PATRICIA_JDBC_USERNAME: USERNAME
+      PATRICIA_JDBC_PASSWORD: PASSWORD
+
+      # Local cache for keeping track of cases and projects that have been synced
+      DATA_DIR: /usr/local/wisetime-connector/data/
+
+    volumes:
+      - data:/usr/local/wisetime-connector/data/
+volumes:
+  data:
+    driver: local
